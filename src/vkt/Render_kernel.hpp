@@ -11,7 +11,7 @@
 #include <visionaray/math/vector.h>
 #include <visionaray/phase_function.h>
 #include <visionaray/result_record.h>
-
+#include <common/image.h>
 #include <vkt/Render.hpp>
 
 #include "HierarchicalVolumeView.hpp"
@@ -55,19 +55,28 @@ struct AccumulationKernel
     unsigned frameNum;
     bool sRGB;
     visionaray::vec4f* accumBuffer = nullptr;
+    visionaray::vec3f* albedoBuffer = nullptr;
 
     VSNRAY_FUNC
     visionaray::vec4f accum(visionaray::vec4f src, int x, int y)
     {
         using namespace visionaray;
-
+        //accumBuffer is where all the buffers come in
         float alpha = 1.f / frameNum;
+        
+        //albedoBuffer[y * width + x] = (1.f - alpha)* albedoBuffer[y * width + x] + alpha * albedo(src);
         accumBuffer[y * width + x] = (1.f - alpha) * accumBuffer[y * width + x] + alpha * src;
         vec4f result = accumBuffer[y * width + x];
-
+    //    image img(
+   //     width,
+   //     height,
+   //     PF_RGB8,
+   //     reinterpret_cast<uint8_t const*>(accumBuffer)
+   //     );
+      //  image::save_option opt1;
+       // img.save("test1.png",{opt1});
         if (sRGB)
             result.xyz() = linear_to_srgb(result.xyz());
-
         return result;
     }
 };
@@ -318,6 +327,7 @@ struct MultiScatteringKernel : AccumulationKernel
 
         do
         {
+            //woodcock tracking
             t -= log(1.0f - gen.next()) / mu_;
 
             pos = r.ori + r.dir * t;

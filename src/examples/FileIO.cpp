@@ -46,19 +46,22 @@ int main(int argc, char** argv)
     is.read(volume);
 
     float rgba[] = {
+            0.f, 0.f, 0.f, 0.f,
             1.f, 1.f, 1.f, .005f,
             0.f, .1f, .1f, .25f,
             .5f, .5f, .7f, .5f,
             .7f, .7f, .07f, .75f,
             1.f, .3f, .3f, 1.f
             };
-    vkt::LookupTable lut(5,1,1,vkt::ColorFormat::RGBA32F);
+    vkt::LookupTable lut(6,1,1,vkt::ColorFormat::RGBA32F);
     lut.setData((uint8_t*)rgba);
 
     // Switch execution to GPU (remove those lines for CPU rendering)
     vkt::ExecutionPolicy ep = vkt::GetThreadExecutionPolicy();
     ep.device = vkt::ExecutionPolicy::Device::GPU;
     vkt::SetThreadExecutionPolicy(ep);
+
+
 
     vkt::RenderState renderState;
     renderState.snapshotTool.enabled = true;

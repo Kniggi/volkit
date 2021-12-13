@@ -545,6 +545,7 @@ void Viewer::on_display()
                 std::unique_lock<std::mutex> l(displayMutex);
                 // swap render targets
                 frontBufferIndex = !frontBufferIndex;
+            
                 ++frame_num;
             }
 
@@ -688,36 +689,37 @@ void Viewer::on_display()
         }
     };
 
-    if (structured)
-    {
-        switch (structuredVolume.getDataFormat())
-        {
-        case vkt::DataFormat::Int16:
-            callKernel(int16_t{});
-            break;
-
-        case vkt::DataFormat::UInt8:
-            callKernel(uint8_t{});
-            break;
-
-        case vkt::DataFormat::UInt16:
-            callKernel(uint16_t{});
-            break;
-
-        case vkt::DataFormat::UInt32:
-            callKernel(uint32_t{});
-            break;
-
-        case vkt::DataFormat::Float32:
-            callKernel(float{});
-            break;
-        }
-    }
-    else // hierarchical
-    {
-        callKernel(uint8_t{});
-    }
-
+    //if (frame_num < 1){
+      if (structured)
+      {
+          switch (structuredVolume.getDataFormat())
+          {
+          case vkt::DataFormat::Int16:
+              callKernel(int16_t{});
+              break;
+  
+          case vkt::DataFormat::UInt8:
+              callKernel(uint8_t{});
+              break;
+  
+          case vkt::DataFormat::UInt16:
+              callKernel(uint16_t{});
+              break;
+  
+          case vkt::DataFormat::UInt32:
+              callKernel(uint32_t{});
+              break;
+  
+          case vkt::DataFormat::Float32:
+              callKernel(float{});
+              break;
+          }
+      }
+      else // hierarchical
+      {
+          callKernel(uint8_t{});
+      }
+    //}
     // display the rendered image
 
     auto bgcolor = background_color();
