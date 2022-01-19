@@ -16,14 +16,13 @@
 
 #include "HierarchicalVolumeView.hpp"
 
-
-VKT_FUNC inline float tex3D(vkt::HierarchicalVolumeView const& vol, visionaray::vec3 coord)
+VKT_FUNC inline float tex3D(vkt::HierarchicalVolumeView const &vol, visionaray::vec3 coord)
 {
     assert(vol.getDataFormat() == vkt::DataFormat::Float32);
 
     visionaray::vec3 logicalGridDims((float)vol.getDims().x, (float)vol.getDims().y, (float)vol.getDims().z);
 
-    coord *= logicalGridDims-visionaray::vec3(.5f);
+    coord *= logicalGridDims - visionaray::vec3(.5f);
 
     return vol.sampleLinear(coord.x, coord.y, coord.z);
 }
@@ -47,15 +46,13 @@ VKT_FUNC inline float normalize(vkt::HierarchicalVolumeView const& volume, float
     return voxel;
 }
 
-
 struct AccumulationKernel
 {
     int width;
     int height;
     unsigned frameNum;
     bool sRGB;
-    visionaray::vec4f* accumBuffer = nullptr;
-    visionaray::vec3f* albedoBuffer = nullptr;
+    visionaray::vec4f *accumBuffer = nullptr;
 
     VSNRAY_FUNC
     visionaray::vec4f accum(visionaray::vec4f src, int x, int y)
@@ -63,24 +60,22 @@ struct AccumulationKernel
         using namespace visionaray;
         //accumBuffer is where all the buffers come in
         float alpha = 1.f / frameNum;
-        
-        //albedoBuffer[y * width + x] = (1.f - alpha)* albedoBuffer[y * width + x] + alpha * albedo(src);
+
         accumBuffer[y * width + x] = (1.f - alpha) * accumBuffer[y * width + x] + alpha * src;
         vec4f result = accumBuffer[y * width + x];
-    //    image img(
-   //     width,
-   //     height,
-   //     PF_RGB8,
-   //     reinterpret_cast<uint8_t const*>(accumBuffer)
-   //     );
-      //  image::save_option opt1;
-       // img.save("test1.png",{opt1});
+        //    image img(
+        //     width,
+        //     height,
+        //     PF_RGB8,
+        //     reinterpret_cast<uint8_t const*>(accumBuffer)
+        //     );
+        //  image::save_option opt1;
+        // img.save("test1.png",{opt1});
         if (sRGB)
             result.xyz() = linear_to_srgb(result.xyz());
         return result;
     }
 };
-
 
 //-------------------------------------------------------------------------------------------------
 // Ray marching with absorption plus emission model
@@ -134,10 +129,9 @@ struct RayMarchingKernel : AccumulationKernel
 
             // front-to-back alpha compositing
             dst += select(
-                    t < hit_rec.tfar,
-                    color * (1.0f - dst.w),
-                    C(0.0)
-                    );
+                t < hit_rec.tfar,
+                color * (1.0f - dst.w),
+                C(0.0));
 
             // early-ray termination - don't traverse w/o a contribution
             if (visionaray::all(result.color.w >= 0.999))
@@ -160,7 +154,6 @@ struct RayMarchingKernel : AccumulationKernel
     Transfunc transfunc;
     float dt;
 };
-
 
 //-------------------------------------------------------------------------------------------------
 // Implicit iso-surface rendering
@@ -269,7 +262,6 @@ struct ImplicitIsoKernel : AccumulationKernel
     float dt;
 };
 
-
 //-------------------------------------------------------------------------------------------------
 // Simple multi-scattering
 // Loosely based on M. Raab: Ray Tracing Inhomogeneous Volumes, RTGems I (2019)
@@ -335,16 +327,14 @@ struct MultiScatteringKernel : AccumulationKernel
             {
                 return false;
             }
-        }
-        while (mu(pos) < gen.next() * mu_);
+        } while (mu(pos) < gen.next() * mu_);
 
         r.ori = pos;
         return true;
     }
 
     template <typename Ray>
-    VSNRAY_FUNC
-    auto operator()(Ray r, visionaray::random_generator<float>& gen, int x, int y)
+    VSNRAY_FUNC auto operator()(Ray r, visionaray::random_generator<float> &gen, int x, int y)
     {
         using namespace visionaray;
 
@@ -357,7 +347,6 @@ struct MultiScatteringKernel : AccumulationKernel
         result_record<S> result;
 
         vec3 throughput(1.f);
-
         auto hit_rec = intersect(r, bbox);
 
         if (visionaray::any(hit_rec.hit))
@@ -366,7 +355,6 @@ struct MultiScatteringKernel : AccumulationKernel
             hit_rec.tfar -= hit_rec.tnear;
 
             unsigned bounce = 0;
-
             while (sample_interaction(r, hit_rec.tfar, gen))
             {
                 // Is the path length exceeded?
@@ -378,7 +366,7 @@ struct MultiScatteringKernel : AccumulationKernel
 
                 throughput *= albedo(r.ori);
 
-                // Russian roulette absorption
+                //  Russian roulette absorption
                 float prob = max_element(throughput);
                 if (prob < 0.2f)
                 {
@@ -390,9 +378,11 @@ struct MultiScatteringKernel : AccumulationKernel
                     throughput /= prob;
                 }
 
-                // Sample phase function
+                // Sample phase function, directionality of scattering
+
                 vec3 scatter_dir;
                 float pdf;
+                //TODO: wie funktioniert sampling
                 f.sample(-r.dir, scatter_dir, pdf, gen);
                 r.dir = scatter_dir;
 
@@ -402,14 +392,91 @@ struct MultiScatteringKernel : AccumulationKernel
 
         // Look up the environment
         float t = y / heightf_;
-        vec3 Ld = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
-        vec3 L = Ld * throughput;
 
+        vec3 Ld = (1.0f - t) * vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+        vec3 L = Ld * throughput;
+        //vec3 L = Ld * alb;
+        //result.color = accum(vec4(L, 1.f), x, y);
         result.color = accum(vec4(L, 1.f), x, y);
         result.hit = hit_rec.hit;
         return result;
     }
 
+    ////////////////////////////////
+    // albedo
+    /////////////////////////////////
+
+    // auto operator()(Ray r, visionaray::random_generator<float> &gen, int x, int y)
+    // {
+    //     using namespace visionaray;
+
+    //     using S = typename Ray::scalar_type;
+    //     using C = vector<4, S>;
+
+    //     henyey_greenstein<float> f;
+    //     f.g = 0.f; // isotropic
+
+    //     result_record<S> result;
+
+    //     vec3 throughput(1.f);
+    //     vec3 alb(0.0f);
+    //     auto hit_rec = intersect(r, bbox);
+
+    //     if (visionaray::any(hit_rec.hit))
+    //     {
+    //         r.ori += r.dir * hit_rec.tnear;
+    //         hit_rec.tfar -= hit_rec.tnear;
+
+    //         unsigned bounce = 0;
+
+    //         while (sample_interaction(r, hit_rec.tfar, gen))
+    //         {
+    //             throughput = albedo(r.ori);
+    //         }
+    //         // while (sample_interaction(r, hit_rec.tfar, gen))
+    //         // {
+    //         //     // Is the path length exceeded?
+    //         //     if (bounce++ >= 1024)
+    //         //     {
+    //         //         throughput = vec3(0.0f);
+    //         //         break;
+    //         //     }
+
+    //         //     //Russian roulette absorption
+    //         //     float prob = max_element(throughput);
+    //         //     if (prob < 0.2f)
+    //         //     {
+    //         //         if (gen.next() > prob)
+    //         //         {
+    //         //             throughput = vec3(0.0f);
+    //         //             break;
+    //         //         }
+    //         //         throughput /= prob;
+    //         //     }
+
+    //         //     // Sample phase function, directionality of scattering
+
+    //         //     vec3 scatter_dir;
+    //         //     float pdf;
+    //         //     //TODO: wie funktioniert sampling
+    //         //     f.sample(-r.dir, scatter_dir, pdf, gen);
+    //         //     r.dir = scatter_dir;
+
+    //         //     hit_rec = intersect(r, bbox);
+    //         // }
+    //     }
+
+    //     // Look up the environment
+    //     float t = y / heightf_;
+
+    //     vec3 Ld = (1.0f - t) * vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+    //     vec3 L = Ld * throughput;
+    //     //vec3 L = Ld * alb;
+    //     result.color = accum(vec4(L, 1.f), x, y);
+
+    //     //result.hit = hit_rec.hit;
+    //     return result;
+    // }
     visionaray::aabb bbox;
     Volume volume;
     Transfunc transfunc;

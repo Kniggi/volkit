@@ -70,11 +70,11 @@ namespace vkt
         if (userLookupTable_ == nullptr)
             return;
 
-        ImGui::Begin("TransfuncEditor");
+     //   ImGui::Begin("TransfuncEditor");
 
         drawImmediate();
 
-        ImGui::End();
+       // ImGui::End();
     }
 
     void TransfuncEditor::drawImmediate()
@@ -84,19 +84,19 @@ namespace vkt
 
         rasterTexture();
 
-        ImGui::GetWindowDrawList()->AddCallback(disableBlendCB, nullptr);
-        ImGui::ImageButton(
-            (void*)(intptr_t)texture_,
-            ImVec2(canvasSize_.x, canvasSize_.y),
-            ImVec2(0, 0),
-            ImVec2(1, 1),
-            0 // frame size = 0
-            );
+        // ImGui::GetWindowDrawList()->AddCallback(disableBlendCB, nullptr);
+        // ImGui::ImageButton(
+        //     (void*)(intptr_t)texture_,
+        //     ImVec2(canvasSize_.x, canvasSize_.y),
+        //     ImVec2(0, 0),
+        //     ImVec2(1, 1),
+        //     0 // frame size = 0
+        //     );
 
-        MouseEvent event = generateMouseEvent();
-        handleMouseEvent(event);
+        // MouseEvent event = generateMouseEvent();
+        // handleMouseEvent(event);
 
-        ImGui::GetWindowDrawList()->AddCallback(enableBlendCB, nullptr);
+        // ImGui::GetWindowDrawList()->AddCallback(enableBlendCB, nullptr);
     }
 
     void TransfuncEditor::rasterTexture()

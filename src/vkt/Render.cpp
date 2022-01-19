@@ -71,12 +71,11 @@ using ViewerBase = viewer_sdl2;
 using ViewerBase = viewer_glut;
 #endif
 
-
 //-------------------------------------------------------------------------------------------------
 // I/O utility for camera lookat only - not fit for the general case!
 //
 
-inline std::istream& operator>>(std::istream& in, thin_lens_camera& cam)
+inline std::istream &operator>>(std::istream &in, thin_lens_camera &cam)
 {
     vec3 eye;
     vec3 center;
@@ -88,7 +87,7 @@ inline std::istream& operator>>(std::istream& in, thin_lens_camera& cam)
     return in;
 }
 
-inline std::ostream& operator<<(std::ostream& out, thin_lens_camera const& cam)
+inline std::ostream &operator<<(std::ostream &out, thin_lens_camera const &cam)
 {
     out << cam.eye() << '\n';
     out << cam.center() << '\n';
@@ -96,11 +95,12 @@ inline std::ostream& operator<<(std::ostream& out, thin_lens_camera const& cam)
     return out;
 }
 
-
 //-------------------------------------------------------------------------------------------------
 // Visionaray viewer
 //
-
+bool captured = false;
+int iterator = 0;
+const int MAX_SCREENSHOTS = 20;
 struct Viewer : ViewerBase
 {
     //using RayType = basic_ray<simd::float4>;
@@ -188,11 +188,10 @@ struct Viewer : ViewerBase
                 SetThreadExecutionPolicy(ep);
 
                 device_transfunc = cuda_texture<vec4, 1>(
-                    (vec4*)lut->getData(),
+                    (vec4 *)lut->getData(),
                     lut->getDims().x,
                     Clamp,
-                    Nearest
-                    );
+                    Nearest);
 
                 SetThreadExecutionPolicy(prev);
             }
@@ -291,9 +290,8 @@ void Viewer::createVolumeViews()
         {
             hierarchicalVolumeAccels[i] = vkt::HierarchicalVolumeAccel(hierarchicalVolumes[i]);
             hierarchicalVolumeViews[i] = vkt::HierarchicalVolumeView(
-                    hierarchicalVolumes[i],
-                    hierarchicalVolumeAccels[i]
-                    );
+                hierarchicalVolumes[i],
+                hierarchicalVolumeAccels[i]);
         }
     }
 }
@@ -313,53 +311,48 @@ void Viewer::updateVolumeTexture()
         {
         case vkt::DataFormat::Int16:
             device_volumeInt16 = cuda_texture<int16_t, 3>(
-                (int16_t*)volume.getData(),
+                (int16_t *)volume.getData(),
                 volume.getDims().x,
                 volume.getDims().y,
                 volume.getDims().z,
                 Clamp,
-                Nearest
-                );
+                Nearest);
             break;
         case vkt::DataFormat::UInt8:
             device_volumeUint8 = cuda_texture<uint8_t, 3>(
-                (uint8_t*)volume.getData(),
+                (uint8_t *)volume.getData(),
                 volume.getDims().x,
                 volume.getDims().y,
                 volume.getDims().z,
                 Clamp,
-                Nearest
-                );
+                Nearest);
             break;
         case vkt::DataFormat::UInt16:
             device_volumeUint16 = cuda_texture<uint16_t, 3>(
-                (uint16_t*)volume.getData(),
+                (uint16_t *)volume.getData(),
                 volume.getDims().x,
                 volume.getDims().y,
                 volume.getDims().z,
                 Clamp,
-                Nearest
-                );
+                Nearest);
             break;
         case vkt::DataFormat::UInt32:
             device_volumeUint32 = cuda_texture<uint32_t, 3>(
-                (uint32_t*)volume.getData(),
+                (uint32_t *)volume.getData(),
                 volume.getDims().x,
                 volume.getDims().y,
                 volume.getDims().z,
                 Clamp,
-                Nearest
-                );
+                Nearest);
             break;
         case vkt::DataFormat::Float32:
             device_volumeFloat32 = cuda_texture<float, 3>(
-                (float*)volume.getData(),
+                (float *)volume.getData(),
                 volume.getDims().x,
                 volume.getDims().y,
                 volume.getDims().z,
                 Clamp,
-                Nearest
-                );
+                Nearest);
             break;
         }
 #else
@@ -376,7 +369,7 @@ void Viewer::clearFrame()
 
 void Viewer::screenShot()
 {
-    auto const& rt = host_rt[frontBufferIndex];
+    auto const &rt = host_rt[frontBufferIndex];
 
     // Swizzle to RGB8 for compatibility with pnm image
     std::vector<vector<3, unorm<8>>> rgb(rt.width() * rt.height());
@@ -586,6 +579,7 @@ void Viewer::on_display()
                         }
                         else if (renderState.renderAlgo == vkt::RenderAlgo::MultiScattering)
                         {
+                            
                             if (structured)
                             {
                                 auto kernel = prepareMultiScatteringKernel(
@@ -615,29 +609,26 @@ void Viewer::on_display()
 #ifndef __CUDA_ARCH__
                         pixel_sampler::jittered_type blend_params;
                         auto sparams = make_sched_params(
-                                blend_params,
-                                cam,
-                                host_rt[!frontBufferIndex]
-                                );
+                            blend_params,
+                            cam,
+                            host_rt[!frontBufferIndex]);
 
                         if (renderState.renderAlgo == vkt::RenderAlgo::RayMarching)
                         {
                             if (structured)
                             {
                                 auto kernel = prepareRayMarchingKernel(
-                                        prepareStructuredVolume(TexelType{}),
-                                        prepareTransfunc(),
-                                        host_accumBuffer.data()
-                                        );
+                                    prepareStructuredVolume(TexelType{}),
+                                    prepareTransfunc(),
+                                    host_accumBuffer.data());
                                 host_sched.frame(kernel, sparams);
                             }
                             else
                             {
                                 auto kernel = prepareRayMarchingKernel(
-                                        hierarchicalVolume,
-                                        prepareTransfunc(),
-                                        host_accumBuffer.data()
-                                        );
+                                    hierarchicalVolume,
+                                    prepareTransfunc(),
+                                    host_accumBuffer.data());
                                 host_sched.frame(kernel, sparams);
                             }
                         }
@@ -646,19 +637,17 @@ void Viewer::on_display()
                             if (structured)
                             {
                                 auto kernel = prepareImplicitIsoKernel(
-                                        prepareStructuredVolume(TexelType{}),
-                                        prepareTransfunc(),
-                                        host_accumBuffer.data()
-                                        );
+                                    prepareStructuredVolume(TexelType{}),
+                                    prepareTransfunc(),
+                                    host_accumBuffer.data());
                                 host_sched.frame(kernel, sparams);
                             }
                             else
                             {
                                 auto kernel = prepareImplicitIsoKernel(
-                                        hierarchicalVolume,
-                                        prepareTransfunc(),
-                                        host_accumBuffer.data()
-                                        );
+                                    hierarchicalVolume,
+                                    prepareTransfunc(),
+                                    host_accumBuffer.data());
                                 host_sched.frame(kernel, sparams);
                             }
                         }
@@ -667,19 +656,17 @@ void Viewer::on_display()
                             if (structured)
                             {
                                 auto kernel = prepareMultiScatteringKernel(
-                                        prepareStructuredVolume(TexelType{}),
-                                        prepareTransfunc(),
-                                        host_accumBuffer.data()
-                                        );
+                                    prepareStructuredVolume(TexelType{}),
+                                    prepareTransfunc(),
+                                    host_accumBuffer.data());
                                 host_sched.frame(kernel, sparams);
                             }
                             else
                             {
                                 auto kernel = prepareMultiScatteringKernel(
-                                        hierarchicalVolume,
-                                        prepareTransfunc(),
-                                        host_accumBuffer.data()
-                                        );
+                                    hierarchicalVolume,
+                                    prepareTransfunc(),
+                                    host_accumBuffer.data());
                                 host_sched.frame(kernel, sparams);
                             }
                         }
@@ -689,37 +676,37 @@ void Viewer::on_display()
         }
     };
 
-    //if (frame_num < 1){
-      if (structured)
-      {
-          switch (structuredVolume.getDataFormat())
-          {
-          case vkt::DataFormat::Int16:
-              callKernel(int16_t{});
-              break;
-  
-          case vkt::DataFormat::UInt8:
-              callKernel(uint8_t{});
-              break;
-  
-          case vkt::DataFormat::UInt16:
-              callKernel(uint16_t{});
-              break;
-  
-          case vkt::DataFormat::UInt32:
-              callKernel(uint32_t{});
-              break;
-  
-          case vkt::DataFormat::Float32:
-              callKernel(float{});
-              break;
-          }
-      }
-      else // hierarchical
-      {
-          callKernel(uint8_t{});
-      }
-    //}
+    //   if (frame_num < 2){
+    if (structured)
+    {
+        switch (structuredVolume.getDataFormat())
+        {
+        case vkt::DataFormat::Int16:
+            callKernel(int16_t{});
+            break;
+
+        case vkt::DataFormat::UInt8:
+            callKernel(uint8_t{});
+            break;
+
+        case vkt::DataFormat::UInt16:
+            callKernel(uint16_t{});
+            break;
+
+        case vkt::DataFormat::UInt32:
+            callKernel(uint32_t{});
+            break;
+
+        case vkt::DataFormat::Float32:
+            callKernel(float{});
+            break;
+        }
+    }
+    else // hierarchical
+    {
+        callKernel(uint8_t{});
+    }
+    //  }
     // display the rendered image
 
     auto bgcolor = background_color();
@@ -742,9 +729,35 @@ void Viewer::on_display()
 
     if (have_imgui_support() && renderState.rgbaLookupTable != vkt::ResourceHandle(-1))
         transfuncEditor.show();
+    //just a dirty hack to delay the time to make screenshots
+    iterator++;
+    if (iterator > 300)
+    {
+        if (renderState.animationFrame + 1 == MAX_SCREENSHOTS)
+        {
+            viewer_glut::quit();
+        }
+        //take screenshot, switch to next animationFrame
+        std::string screenshotName = "screenshot";
+
+        screenshotName.append(std::to_string(renderState.animationFrame));
+        screenshotName.append(".png");
+
+        renderState.snapshotTool.fileName = screenshotName.c_str();
+        std::string message = "Saved to " + screenshotName;
+        renderState.snapshotTool.message = message.c_str();
+        screenShot();
+        renderState.animationFrame++;
+
+        renderState.animationFrame %= numAnimationFrames;
+        updateVolumeTexture();
+        clearFrame();
+
+        iterator = 0;
+    }
 }
 
-void Viewer::on_key_press(visionaray::key_event const& event)
+void Viewer::on_key_press(visionaray::key_event const &event)
 {
     if (event.key() == keyboard::Space)
     {
@@ -898,23 +911,20 @@ static void Render_impl(
 //
 
 static void Render_impl(
-        vkt::StructuredVolume& volume,
-        vkt::RenderState const& renderState,
-        vkt::RenderState* newRenderState
-        )
+    vkt::StructuredVolume &volume,
+    vkt::RenderState const &renderState,
+    vkt::RenderState *newRenderState)
 {
     Render_impl(&volume, nullptr, 1, renderState, newRenderState);
 }
 
 static void Render_impl(
-        vkt::HierarchicalVolume& volume,
-        vkt::RenderState const& renderState,
-        vkt::RenderState* newRenderState
-        )
+    vkt::HierarchicalVolume &volume,
+    vkt::RenderState const &renderState,
+    vkt::RenderState *newRenderState)
 {
     Render_impl(nullptr, &volume, 1, renderState, newRenderState);
 }
-
 
 //-------------------------------------------------------------------------------------------------
 // C++ API
@@ -949,10 +959,10 @@ namespace vkt
     }
 
     Error RenderFrames(
-            HierarchicalVolume* frames,
-            std::size_t numAnimationFrames,
-            RenderState const& renderState,
-            RenderState* newRenderState)
+        HierarchicalVolume *frames,
+        std::size_t numAnimationFrames,
+        RenderState const &renderState,
+        RenderState *newRenderState)
     {
         Render_impl(nullptr, frames, numAnimationFrames, renderState, newRenderState);
 
@@ -961,15 +971,14 @@ namespace vkt
 
 } // vkt
 
-
 //-------------------------------------------------------------------------------------------------
 // C API
 //
 
 vktError vktRenderSV(
-        vktStructuredVolume volume,
-        vktRenderState_t renderState,
-        vktRenderState_t* newRenderState)
+    vktStructuredVolume volume,
+    vktRenderState_t renderState,
+    vktRenderState_t *newRenderState)
 {
     static_assert(sizeof(vktRenderState_t) == sizeof(vkt::RenderState), "Type mismatch");
 
