@@ -37,7 +37,7 @@ VKT_FUNC float normalize(Volume /* */, float voxel)
     return voxel;
 }
 
-VKT_FUNC inline float normalize(vkt::HierarchicalVolumeView const& volume, float voxel)
+VKT_FUNC inline float normalize(vkt::HierarchicalVolumeView const &volume, float voxel)
 {
     assert(volume.getDataFormat() == vkt::DataFormat::Float32);
 
@@ -85,8 +85,7 @@ template <typename Volume, typename Transfunc>
 struct RayMarchingKernel : AccumulationKernel
 {
     template <typename Ray>
-    VSNRAY_FUNC
-    auto operator()(Ray ray, visionaray::random_generator<float>& gen, int x, int y)
+    VSNRAY_FUNC auto operator()(Ray ray, visionaray::random_generator<float> &gen, int x, int y)
     {
         using namespace visionaray;
 
@@ -163,8 +162,7 @@ template <typename Volume, typename Transfunc>
 struct ImplicitIsoKernel : AccumulationKernel
 {
     template <typename T>
-    VSNRAY_FUNC
-    inline visionaray::vector<3, T> gradient(visionaray::vector<3, T> tex_coord)
+    VSNRAY_FUNC inline visionaray::vector<3, T> gradient(visionaray::vector<3, T> tex_coord)
     {
         using namespace visionaray;
 
@@ -184,8 +182,7 @@ struct ImplicitIsoKernel : AccumulationKernel
     }
 
     template <typename Ray>
-    VSNRAY_FUNC
-    auto operator()(Ray ray, visionaray::random_generator<float>& gen, int x, int y)
+    VSNRAY_FUNC auto operator()(Ray ray, visionaray::random_generator<float> &gen, int x, int y)
     {
         using namespace visionaray;
 
@@ -221,8 +218,7 @@ struct ImplicitIsoKernel : AccumulationKernel
             {
                 for (uint16_t i = 0; i < numIsoSurfaces; ++i)
                 {
-                    if ((last <= isoSurfaces[i] && voxel >= isoSurfaces[i])
-                     || (last >= isoSurfaces[i] && voxel <= isoSurfaces[i]))
+                    if ((last <= isoSurfaces[i] && voxel >= isoSurfaces[i]) || (last >= isoSurfaces[i] && voxel <= isoSurfaces[i]))
                     {
                         C color;
                         if (transfunc)
@@ -271,7 +267,7 @@ template <typename Volume, typename Transfunc>
 struct MultiScatteringKernel : AccumulationKernel
 {
     VSNRAY_FUNC
-    visionaray::vec3 albedo(visionaray::vec3 const& pos)
+    visionaray::vec3 albedo(visionaray::vec3 const &pos)
     {
         using namespace visionaray;
 
@@ -290,7 +286,7 @@ struct MultiScatteringKernel : AccumulationKernel
     }
 
     VSNRAY_FUNC
-    float mu(visionaray::vec3 const& pos)
+    float mu(visionaray::vec3 const &pos)
     {
         using namespace visionaray;
 
@@ -310,7 +306,7 @@ struct MultiScatteringKernel : AccumulationKernel
 
     template <typename Ray>
     VSNRAY_FUNC
-    bool sample_interaction(Ray& r, float d, visionaray::random_generator<float>& gen)
+    bool sample_interaction(Ray &r, float d, visionaray::random_generator<float> &gen)
     {
         using namespace visionaray;
 
@@ -319,7 +315,7 @@ struct MultiScatteringKernel : AccumulationKernel
 
         do
         {
-            //woodcock tracking
+            //woodcock tracking, mu_ is majorant, mu is extinction coefficient
             t -= log(1.0f - gen.next()) / mu_;
 
             pos = r.ori + r.dir * t;
@@ -334,7 +330,8 @@ struct MultiScatteringKernel : AccumulationKernel
     }
 
     template <typename Ray>
-    VSNRAY_FUNC auto operator()(Ray r, visionaray::random_generator<float> &gen, int x, int y)
+    VSNRAY_FUNC 
+    auto operator()(Ray r, visionaray::random_generator<float> &gen, int x, int y)
     {
         using namespace visionaray;
 
@@ -347,10 +344,12 @@ struct MultiScatteringKernel : AccumulationKernel
         result_record<S> result;
 
         vec3 throughput(1.f);
+        //aabb bounding box: axis algned bounding box surrounding the volume, return type is hit_record
         auto hit_rec = intersect(r, bbox);
-
+        //if bounding box is hit
         if (visionaray::any(hit_rec.hit))
         {
+            //tnear is numeric limit of type Ray, tfar is -numeric limit of type ray
             r.ori += r.dir * hit_rec.tnear;
             hit_rec.tfar -= hit_rec.tnear;
 
@@ -382,7 +381,7 @@ struct MultiScatteringKernel : AccumulationKernel
 
                 vec3 scatter_dir;
                 float pdf;
-                //TODO: wie funktioniert sampling
+                //use henhey greenstein to sample scattering direction, scatter_dir and is result where ray direction goes, pdf currently not used
                 f.sample(-r.dir, scatter_dir, pdf, gen);
                 r.dir = scatter_dir;
 

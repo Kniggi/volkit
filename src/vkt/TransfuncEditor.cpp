@@ -69,11 +69,11 @@ namespace vkt
     {
         if (userLookupTable_ == nullptr)
             return;
-
-     //   ImGui::Begin("TransfuncEditor");
+    //for screenshotting: delete transfer function editor
+    //   ImGui::Begin("TransfuncEditor");
 
         drawImmediate();
-
+    //for screenshotting: delete transfer function editor
        // ImGui::End();
     }
 
@@ -83,7 +83,7 @@ namespace vkt
             return;
 
         rasterTexture();
-
+        //for screenshotting: delete transfer function editor
         // ImGui::GetWindowDrawList()->AddCallback(disableBlendCB, nullptr);
         // ImGui::ImageButton(
         //     (void*)(intptr_t)texture_,

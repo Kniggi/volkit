@@ -9,7 +9,7 @@
 #include <future>
 #include <memory>
 #include <vector>
-
+#include <chrono>
 #if VKT_HAVE_CUDA
 #include <cuda_runtime.h>
 #include <thrust/device_vector.h>
@@ -99,30 +99,31 @@ inline std::ostream &operator<<(std::ostream &out, thin_lens_camera const &cam)
 // Visionaray viewer
 //
 bool captured = false;
-int iterator = 0;
+std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<double>> elapsed_time;
 const int MAX_SCREENSHOTS = 20;
+const int TIME_BETWEEN_SCREENSHOTS = 3;
 struct Viewer : ViewerBase
 {
     //using RayType = basic_ray<simd::float4>;
     using RayType = basic_ray<float>;
 
-    vkt::StructuredVolume*                    structuredVolumes;
-    vkt::HierarchicalVolume*                  hierarchicalVolumes;
-    std::size_t                               numAnimationFrames;
-    vkt::RenderState                          renderState;
+    vkt::StructuredVolume *structuredVolumes;
+    vkt::HierarchicalVolume *hierarchicalVolumes;
+    std::size_t numAnimationFrames;
+    vkt::RenderState renderState;
 
-    std::vector<vkt::StructuredVolumeView>    structuredVolumeViews;
+    std::vector<vkt::StructuredVolumeView> structuredVolumeViews;
     std::vector<vkt::HierarchicalVolumeAccel> hierarchicalVolumeAccels;
-    std::vector<vkt::HierarchicalVolumeView>  hierarchicalVolumeViews;
+    std::vector<vkt::HierarchicalVolumeView> hierarchicalVolumeViews;
 
-    aabb                                      bbox;
-    thin_lens_camera                          cam;
-    unsigned                                  frame_num;
+    aabb bbox;
+    thin_lens_camera cam;
+    unsigned frame_num;
 
-    vkt::TransfuncEditor                      transfuncEditor;
+    vkt::TransfuncEditor transfuncEditor;
 
-    std::future<void>                         renderFuture;
-    std::mutex                                displayMutex;
+    std::future<void> renderFuture;
+    std::mutex displayMutex;
 
     int frontBufferIndex;
 
@@ -130,20 +131,20 @@ struct Viewer : ViewerBase
 
     // Two render targets for double buffering
     cpu_buffer_rt<PF_RGBA32F, PF_UNSPECIFIED> host_rt[2];
-    tiled_sched<RayType>                      host_sched;
-    std::vector<vec4>                         host_accumBuffer;
+    tiled_sched<RayType> host_sched;
+    std::vector<vec4> host_accumBuffer;
 
 #if VKT_HAVE_CUDA
     // Two render targets for double buffering
     gpu_buffer_rt<PF_RGBA32F, PF_UNSPECIFIED> device_rt[2];
-    cuda_sched<RayType>                       device_sched;
-    thrust::device_vector<vec4>               device_accumBuffer;
-    cuda_texture<int16_t, 3>                  device_volumeInt16;
-    cuda_texture<uint8_t, 3>                  device_volumeUint8;
-    cuda_texture<uint16_t, 3>                 device_volumeUint16;
-    cuda_texture<uint32_t, 3>                 device_volumeUint32;
-    cuda_texture<float, 3>                    device_volumeFloat32;
-    cuda_texture<vec4, 1>                     device_transfunc;
+    cuda_sched<RayType> device_sched;
+    thrust::device_vector<vec4> device_accumBuffer;
+    cuda_texture<int16_t, 3> device_volumeInt16;
+    cuda_texture<uint8_t, 3> device_volumeUint8;
+    cuda_texture<uint16_t, 3> device_volumeUint16;
+    cuda_texture<uint32_t, 3> device_volumeUint32;
+    cuda_texture<float, 3> device_volumeFloat32;
+    cuda_texture<vec4, 1> device_transfunc;
 
     inline cuda_texture_ref<int16_t, 3> prepareDeviceVolume(int16_t /* */)
     {
@@ -176,9 +177,9 @@ struct Viewer : ViewerBase
 
         if (renderState.rgbaLookupTable != ResourceHandle(-1))
         {
-            LookupTable* lut = transfuncEditor.getUpdatedLookupTable();
+            LookupTable *lut = transfuncEditor.getUpdatedLookupTable();
             if (lut == nullptr)
-                lut = (LookupTable*)GetManagedResource(renderState.rgbaLookupTable);
+                lut = (LookupTable *)GetManagedResource(renderState.rgbaLookupTable);
 
             if (transfuncEditor.updated() || !device_transfunc)
             {
@@ -203,16 +204,13 @@ struct Viewer : ViewerBase
     }
 #endif
 
-
-
     Viewer(
-        vkt::StructuredVolume* structuredVolumes,
-        vkt::HierarchicalVolume* hierarchicalVolumes,
+        vkt::StructuredVolume *structuredVolumes,
+        vkt::HierarchicalVolume *hierarchicalVolumes,
         std::size_t numAnimationFrames,
         vkt::RenderState renderState,
-        char const* windowTitle = "",
-        unsigned numThreads = std::thread::hardware_concurrency()
-        );
+        char const *windowTitle = "",
+        unsigned numThreads = std::thread::hardware_concurrency());
 
     void createVolumeViews();
 
@@ -223,9 +221,9 @@ struct Viewer : ViewerBase
     void screenShot();
 
     void on_display();
-    void on_key_press(visionaray::key_event const& event);
-    void on_mouse_move(visionaray::mouse_event const& event);
-    void on_space_mouse_move(visionaray::space_mouse_event const& event);
+    void on_key_press(visionaray::key_event const &event);
+    void on_mouse_move(visionaray::mouse_event const &event);
+    void on_space_mouse_move(visionaray::space_mouse_event const &event);
     void on_resize(int w, int h);
 
     void load_camera(std::string filename)
@@ -241,25 +239,17 @@ struct Viewer : ViewerBase
 };
 
 Viewer::Viewer(
-        vkt::StructuredVolume* structuredVolumes,
-        vkt::HierarchicalVolume* hierarchicalVolumes,
-        std::size_t numAnimationFrames,
-        vkt::RenderState renderState,
-        char const* windowTitle,
-        unsigned numThreads
-        )
-    : ViewerBase(renderState.viewportWidth, renderState.viewportHeight, windowTitle)
-    , structuredVolumes(structuredVolumes)
-    , hierarchicalVolumes(hierarchicalVolumes)
-    , numAnimationFrames(numAnimationFrames)
-    , renderState(renderState)
-    , host_sched(numThreads)
-    , frontBufferIndex(0)
+    vkt::StructuredVolume *structuredVolumes,
+    vkt::HierarchicalVolume *hierarchicalVolumes,
+    std::size_t numAnimationFrames,
+    vkt::RenderState renderState,
+    char const *windowTitle,
+    unsigned numThreads)
+    : ViewerBase(renderState.viewportWidth, renderState.viewportHeight, windowTitle), structuredVolumes(structuredVolumes), hierarchicalVolumes(hierarchicalVolumes), numAnimationFrames(numAnimationFrames), renderState(renderState), host_sched(numThreads), frontBufferIndex(0)
 {
     vkt::ExecutionPolicy ep = vkt::GetThreadExecutionPolicy();
 
-    useCuda = ep.device == vkt::ExecutionPolicy::Device::GPU
-           && ep.deviceApi == vkt::ExecutionPolicy::DeviceAPI::CUDA;
+    useCuda = ep.device == vkt::ExecutionPolicy::Device::GPU && ep.deviceApi == vkt::ExecutionPolicy::DeviceAPI::CUDA;
 
     if (renderState.rgbaLookupTable != vkt::ResourceHandle(-1))
         transfuncEditor.setLookupTableResource(renderState.rgbaLookupTable);
@@ -270,6 +260,7 @@ Viewer::Viewer(
     createVolumeViews();
 
     updateVolumeTexture();
+    elapsed_time = std::chrono::system_clock::now();
 }
 
 void Viewer::createVolumeViews()
@@ -392,8 +383,7 @@ void Viewer::screenShot()
         rt.width(),
         rt.height(),
         PF_RGB8,
-        reinterpret_cast<uint8_t const*>(flipped.data())
-        );
+        reinterpret_cast<uint8_t const *>(flipped.data()));
 
     image::save_option opt1;
     if (img.save(renderState.snapshotTool.fileName, {opt1}))
@@ -431,11 +421,10 @@ void Viewer::on_display()
         using Texture = texture_ref<TexelType, 3>;
 
         Texture volume_tex(
-                structuredVolume.getDims().x,
-                structuredVolume.getDims().y,
-                structuredVolume.getDims().z
-                );
-        volume_tex.reset((TexelType*)structuredVolume.getData());
+            structuredVolume.getDims().x,
+            structuredVolume.getDims().y,
+            structuredVolume.getDims().z);
+        volume_tex.reset((TexelType *)structuredVolume.getData());
         volume_tex.set_filter_mode(Nearest);
         volume_tex.set_address_mode(Clamp);
         return volume_tex;
@@ -449,14 +438,14 @@ void Viewer::on_display()
 
         if (renderState.rgbaLookupTable != ResourceHandle(-1))
         {
-            LookupTable* lut = transfuncEditor.getUpdatedLookupTable();
+            LookupTable *lut = transfuncEditor.getUpdatedLookupTable();
             if (lut == nullptr)
-                lut = (LookupTable*)GetManagedResource(renderState.rgbaLookupTable);
+                lut = (LookupTable *)GetManagedResource(renderState.rgbaLookupTable);
 
             transfunc_tex = texture_ref<vec4, 1>(lut->getDims().x);
             transfunc_tex.set_filter_mode(Nearest);
             transfunc_tex.set_address_mode(Clamp);
-            transfunc_tex.reset((vec4*)lut->getData());
+            transfunc_tex.reset((vec4 *)lut->getData());
         }
 
         return transfunc_tex;
@@ -494,8 +483,7 @@ void Viewer::on_display()
         std::memcpy(
             &kernel.isoSurfaces,
             &renderState.isoSurfaces,
-            sizeof(renderState.isoSurfaces)
-            );
+            sizeof(renderState.isoSurfaces));
         kernel.dt = renderState.dtImplicitIso;
         kernel.width = width();
         kernel.height = height();
@@ -531,21 +519,20 @@ void Viewer::on_display()
     {
         using TexelType = decltype(texel);
 
-        if (!renderFuture.valid()
-            || renderFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        if (!renderFuture.valid() || renderFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
         {
             {
                 std::unique_lock<std::mutex> l(displayMutex);
                 // swap render targets
                 frontBufferIndex = !frontBufferIndex;
-            
+
                 ++frame_num;
             }
 
             vkt::ExecutionPolicy mainThreadEP = vkt::GetThreadExecutionPolicy();
 
             renderFuture = std::async(
-                [&,mainThreadEP,this]()
+                [&, mainThreadEP, this]()
                 {
                     vkt::SetThreadExecutionPolicy(mainThreadEP);
 
@@ -554,54 +541,49 @@ void Viewer::on_display()
 #if VKT_HAVE_CUDA
                         pixel_sampler::jittered_type blend_params;
                         auto sparams = make_sched_params(
-                                blend_params,
-                                cam,
-                                device_rt[!frontBufferIndex]
-                                );
+                            blend_params,
+                            cam,
+                            device_rt[!frontBufferIndex]);
 
                         if (renderState.renderAlgo == vkt::RenderAlgo::RayMarching)
                         {
                             auto kernel = prepareRayMarchingKernel(
-                                    prepareDeviceVolume(TexelType{}),
-                                    prepareDeviceTransfunc(),
-                                    thrust::raw_pointer_cast(device_accumBuffer.data())
-                                    );
+                                prepareDeviceVolume(TexelType{}),
+                                prepareDeviceTransfunc(),
+                                thrust::raw_pointer_cast(device_accumBuffer.data()));
                             device_sched.frame(kernel, sparams);
                         }
                         else if (renderState.renderAlgo == vkt::RenderAlgo::ImplicitIso)
                         {
                             auto kernel = prepareImplicitIsoKernel(
-                                    prepareDeviceVolume(TexelType{}),
-                                    prepareDeviceTransfunc(),
-                                    thrust::raw_pointer_cast(device_accumBuffer.data())
-                                    );
+                                prepareDeviceVolume(TexelType{}),
+                                prepareDeviceTransfunc(),
+                                thrust::raw_pointer_cast(device_accumBuffer.data()));
                             device_sched.frame(kernel, sparams);
                         }
                         else if (renderState.renderAlgo == vkt::RenderAlgo::MultiScattering)
                         {
-                            
+
                             if (structured)
                             {
                                 auto kernel = prepareMultiScatteringKernel(
-                                        prepareDeviceVolume(TexelType{}),
-                                        prepareDeviceTransfunc(),
-                                        thrust::raw_pointer_cast(device_accumBuffer.data())
-                                        );
+                                    prepareDeviceVolume(TexelType{}),
+                                    prepareDeviceTransfunc(),
+                                    thrust::raw_pointer_cast(device_accumBuffer.data()));
                                 device_sched.frame(kernel, sparams);
                             }
                             else
                             {
                                 auto kernel = prepareMultiScatteringKernel(
-                                        hierarchicalVolume,
-                                        prepareDeviceTransfunc(),
-                                        thrust::raw_pointer_cast(device_accumBuffer.data())
-                                        );
+                                    hierarchicalVolume,
+                                    prepareDeviceTransfunc(),
+                                    thrust::raw_pointer_cast(device_accumBuffer.data()));
                                 device_sched.frame(kernel, sparams);
                             }
                         }
 #else
                         VKT_LOG(vkt::logging::Level::Error)
-                                << " GPU backend not available";
+                            << " GPU backend not available";
 #endif
                     }
                     else
@@ -730,8 +712,8 @@ void Viewer::on_display()
     if (have_imgui_support() && renderState.rgbaLookupTable != vkt::ResourceHandle(-1))
         transfuncEditor.show();
     //just a dirty hack to delay the time to make screenshots
-    iterator++;
-    if (iterator > 300)
+    std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-elapsed_time;
+    if (elapsed_seconds.count() > TIME_BETWEEN_SCREENSHOTS)
     {
         if (renderState.animationFrame + 1 == MAX_SCREENSHOTS)
         {
@@ -753,7 +735,7 @@ void Viewer::on_display()
         updateVolumeTexture();
         clearFrame();
 
-        iterator = 0;
+        elapsed_time = std::chrono::system_clock::now();
     }
 }
 
@@ -775,7 +757,7 @@ void Viewer::on_key_press(visionaray::key_event const &event)
     ViewerBase::on_key_press(event);
 }
 
-void Viewer::on_mouse_move(visionaray::mouse_event const& event)
+void Viewer::on_mouse_move(visionaray::mouse_event const &event)
 {
     if (event.buttons() != mouse::NoButton)
         clearFrame();
@@ -783,7 +765,7 @@ void Viewer::on_mouse_move(visionaray::mouse_event const& event)
     ViewerBase::on_mouse_move(event);
 }
 
-void Viewer::on_space_mouse_move(visionaray::space_mouse_event const& event)
+void Viewer::on_space_mouse_move(visionaray::space_mouse_event const &event)
 {
     clearFrame();
 
@@ -818,27 +800,25 @@ void Viewer::on_resize(int w, int h)
     ViewerBase::on_resize(w, h);
 }
 
-
 //-------------------------------------------------------------------------------------------------
 // Render common impl for both APIs
 //
 
 static void Render_impl(
-        vkt::StructuredVolume* structuredVolumes,
-        vkt::HierarchicalVolume* hierarchicalVolumes,
-        std::size_t numAnimationFrames,
-        vkt::RenderState const& renderState,
-        vkt::RenderState* newRenderState
-        )
+    vkt::StructuredVolume *structuredVolumes,
+    vkt::HierarchicalVolume *hierarchicalVolumes,
+    std::size_t numAnimationFrames,
+    vkt::RenderState const &renderState,
+    vkt::RenderState *newRenderState)
 {
     Viewer viewer(structuredVolumes, hierarchicalVolumes, numAnimationFrames, renderState);
 
     int argc = 1;
-    char const* argv = "vktRender";
-    viewer.init(argc, (char**)&argv);
+    char const *argv = "vktRender";
+    viewer.init(argc, (char **)&argv);
 
     vkt::Vec3i dims;
-    vkt::Vec3f dist{ 1.f, 1.f, 1.f };
+    vkt::Vec3f dist{1.f, 1.f, 1.f};
 
     if (structuredVolumes != nullptr)
     {
@@ -849,9 +829,8 @@ static void Render_impl(
         dims = hierarchicalVolumes[0].getDims();
 
     viewer.bbox = aabb(
-            { 0.f, 0.f, 0.f },
-            { dims.x * dist.x, dims.y * dist.y, dims.z * dist.z }
-            );
+        {0.f, 0.f, 0.f},
+        {dims.x * dist.x, dims.y * dist.y, dims.z * dist.z});
 
     float aspect = viewer.width() / static_cast<float>(viewer.height());
 
@@ -868,11 +847,10 @@ static void Render_impl(
     else
     {
         viewer.cam.perspective(
-                45.f * constants::degrees_to_radians<float>(),
-                aspect,
-                .001f,
-                1000.f
-                );
+            45.f * constants::degrees_to_radians<float>(),
+            aspect,
+            .001f,
+            1000.f);
         viewer.cam.set_lens_radius(0.05f);
         viewer.cam.set_focal_distance(10.0f);
         viewer.cam.view_all(viewer.bbox);
@@ -883,7 +861,6 @@ static void Render_impl(
     // Additional "Alt + LMB" pan manipulator for setups w/o middle mouse button
     viewer.add_manipulator(std::make_shared<pan_manipulator>(viewer.cam, mouse::Left, keyboard::Alt));
     viewer.add_manipulator(std::make_shared<zoom_manipulator>(viewer.cam, mouse::Right));
-
     viewer.event_loop();
 
     // when finished, write out the new render state
@@ -897,9 +874,9 @@ static void Render_impl(
         vec3 eye = viewer.cam.eye();
         vec3 center = viewer.cam.center();
         vec3 up = viewer.cam.up();
-        newRenderState->initialCamera.eye = { eye.x, eye.y, eye.z };
-        newRenderState->initialCamera.center = { center.x, center.y, center.z };
-        newRenderState->initialCamera.up = { up.x, up.y, up.z };
+        newRenderState->initialCamera.eye = {eye.x, eye.y, eye.z};
+        newRenderState->initialCamera.center = {center.x, center.y, center.z};
+        newRenderState->initialCamera.up = {up.x, up.y, up.z};
         newRenderState->initialCamera.fovy = viewer.cam.fovy();
         newRenderState->initialCamera.lensRadius = viewer.cam.get_lens_radius();
         newRenderState->initialCamera.focalDistance = viewer.cam.get_focal_distance();
@@ -933,7 +910,7 @@ static void Render_impl(
 namespace vkt
 {
 
-    Error Render(StructuredVolume& volume, RenderState const& renderState, RenderState* newRenderState)
+    Error Render(StructuredVolume &volume, RenderState const &renderState, RenderState *newRenderState)
     {
         Render_impl(volume, renderState, newRenderState);
 
@@ -941,17 +918,17 @@ namespace vkt
     }
 
     Error RenderFrames(
-            StructuredVolume* frames,
-            std::size_t numAnimationFrames,
-            RenderState const& renderState,
-            RenderState* newRenderState)
+        StructuredVolume *frames,
+        std::size_t numAnimationFrames,
+        RenderState const &renderState,
+        RenderState *newRenderState)
     {
         Render_impl(frames, nullptr, numAnimationFrames, renderState, newRenderState);
 
         return NoError;
     }
 
-    Error Render(HierarchicalVolume& volume, RenderState const& renderState, RenderState* newRenderState)
+    Error Render(HierarchicalVolume &volume, RenderState const &renderState, RenderState *newRenderState)
     {
         Render_impl(volume, renderState, newRenderState);
 
