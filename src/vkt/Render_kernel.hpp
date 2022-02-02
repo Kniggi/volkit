@@ -4,7 +4,7 @@
 #pragma once
 
 #include <cassert>
-
+#include <math.h>
 #include <visionaray/math/aabb.h>
 #include <visionaray/math/intersect.h>
 #include <visionaray/math/limits.h>
@@ -53,7 +53,10 @@ struct AccumulationKernel
     unsigned frameNum;
     bool sRGB;
     visionaray::vec4f *accumBuffer = nullptr;
-
+    visionaray::vec4f *accumAlbedoBuffer = nullptr;
+    visionaray::vec4f *accumPositionBuffer = nullptr;
+    visionaray::vec4f *accumGradientBuffer = nullptr;
+    visionaray::vec4f *accumCharacteristicsBuffer = nullptr;
     VSNRAY_FUNC
     visionaray::vec4f accum(visionaray::vec4f src, int x, int y)
     {
@@ -63,17 +66,47 @@ struct AccumulationKernel
 
         accumBuffer[y * width + x] = (1.f - alpha) * accumBuffer[y * width + x] + alpha * src;
         vec4f result = accumBuffer[y * width + x];
-        //    image img(
-        //     width,
-        //     height,
-        //     PF_RGB8,
-        //     reinterpret_cast<uint8_t const*>(accumBuffer)
-        //     );
-        //  image::save_option opt1;
-        // img.save("test1.png",{opt1});
+    
         if (sRGB)
             result.xyz() = linear_to_srgb(result.xyz());
         return result;
+    }
+    VSNRAY_FUNC
+    void accum_albedo(visionaray::vec4f src, int x, int y)
+    {
+        using namespace visionaray;
+
+        accumAlbedoBuffer[y * width + x] = src;
+        if (sRGB)
+            accumAlbedoBuffer[y * width + x].xyz() = linear_to_srgb(accumAlbedoBuffer[y * width + x].xyz());
+    
+    }
+    VSNRAY_FUNC
+    void accum_position(visionaray::vec4f src, int x, int y)
+    {
+        using namespace visionaray;
+
+        accumPositionBuffer[y * width + x] = src;
+        if (sRGB)
+            accumPositionBuffer[y * width + x].xyz() = linear_to_srgb(accumPositionBuffer[y * width + x].xyz());
+    }
+    VSNRAY_FUNC
+    void accum_gradient(visionaray::vec4f src, int x, int y)
+    {
+        using namespace visionaray;
+
+        accumGradientBuffer[y * width + x] = src;
+        if (sRGB)
+            accumGradientBuffer[y * width + x].xyz() = linear_to_srgb(accumGradientBuffer[y * width + x].xyz());
+    }
+    VSNRAY_FUNC
+    void accum_characteristics(visionaray::vec4f src, int x, int y)
+    {
+        using namespace visionaray;
+
+        accumCharacteristicsBuffer[y * width + x] = src;
+        if (sRGB)
+            accumCharacteristicsBuffer[y * width + x].xyz() = linear_to_srgb(accumCharacteristicsBuffer[y * width + x].xyz());
     }
 };
 
@@ -266,6 +299,26 @@ struct ImplicitIsoKernel : AccumulationKernel
 template <typename Volume, typename Transfunc>
 struct MultiScatteringKernel : AccumulationKernel
 {
+
+    template <typename T>
+    VSNRAY_FUNC inline visionaray::vector<3, T> gradient(visionaray::vector<3, T> tex_coord)
+    {
+        using namespace visionaray;
+
+        vector<3, T> s1;
+        vector<3, T> s2;
+
+        float DELTA = 0.01f;
+
+        s1.x = tex3D(volume, tex_coord + vector<3, T>(DELTA, 0.0f, 0.0f));
+        s2.x = tex3D(volume, tex_coord - vector<3, T>(DELTA, 0.0f, 0.0f));
+        s1.y = tex3D(volume, tex_coord + vector<3, T>(0.0f, DELTA, 0.0f));
+        s2.y = tex3D(volume, tex_coord - vector<3, T>(0.0f, DELTA, 0.0f));
+        s1.z = tex3D(volume, tex_coord + vector<3, T>(0.0f, 0.0f, DELTA));
+        s2.z = tex3D(volume, tex_coord - vector<3, T>(0.0f, 0.0f, DELTA));
+
+        return s2 - s1;
+    }
     VSNRAY_FUNC
     visionaray::vec3 albedo(visionaray::vec3 const &pos)
     {
@@ -337,19 +390,19 @@ struct MultiScatteringKernel : AccumulationKernel
 
         using S = typename Ray::scalar_type;
         using C = vector<4, S>;
-
+       
         henyey_greenstein<float> f;
         f.g = 0.f; // isotropic
-
+        vec3 initial_position(r.ori);
         result_record<S> result;
 
-        vec3 throughput(1.f);
+        vec3 throughput(1.0f);
         //aabb bounding box: axis algned bounding box surrounding the volume, return type is hit_record
         auto hit_rec = intersect(r, bbox);
         //if bounding box is hit
         if (visionaray::any(hit_rec.hit))
         {
-            //tnear is numeric limit of type Ray, tfar is -numeric limit of type ray
+            //move ray inside volume
             r.ori += r.dir * hit_rec.tnear;
             hit_rec.tfar -= hit_rec.tnear;
 
@@ -357,14 +410,38 @@ struct MultiScatteringKernel : AccumulationKernel
             while (sample_interaction(r, hit_rec.tfar, gen))
             {
                 // Is the path length exceeded?
-                if (bounce++ >= 1024)
+                bounce++;
+                if (bounce >= 1024)
                 {
                     throughput = vec3(0.0f);
                     break;
                 }
-
+                
                 throughput *= albedo(r.ori);
+                if (bounce==1)
+                {
 
+                    //albedo map
+                    
+                    accum_albedo(vec4(vec3f(1.0f, 1.0f, 1.0f) * throughput, 1.f), x, y);
+                    //position map
+                   
+                    accum_position(vec4(normalize(r.ori), 1.f),x,y);
+
+                    //gradient map
+                    vector<3, float> boxSize(bbox.size());
+                    vector<3, float> gradient_val = gradient(visionaray::vector<3, float>(r.ori / boxSize));
+                    
+                    accum_gradient(vec4(gradient_val, 1.0f), x, y);
+
+                    
+                    //gradient magnitude, optical thickness, extinction coefficient 
+                    float gradient_mag = sqrt(pow(gradient_val.data()[0],2.0) + pow(gradient_val.data()[1],2.0) + pow(gradient_val.data()[2],2.0));
+                    float optical_thickness = (pow(mu(initial_position),2)/2) - (pow(mu(r.ori),2)/2);
+                    vec3 characteristics(gradient_mag,optical_thickness,mu(r.ori));
+                    vec4 res (characteristics,1.0f);
+                    accum_characteristics(res,x,y);
+                }
                 //  Russian roulette absorption
                 float prob = max_element(throughput);
                 if (prob < 0.2f)
@@ -388,94 +465,19 @@ struct MultiScatteringKernel : AccumulationKernel
                 hit_rec = intersect(r, bbox);
             }
         }
-
+        //black background
+        if(throughput == vec3(1.0f)){
+              throughput = vec3(0.0f);
+        }
         // Look up the environment
         float t = y / heightf_;
 
-        vec3 Ld = (1.0f - t) * vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+        vec3 Ld = (1.0f - t) * vec3f(0.0f, 0.0f, 0.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
         vec3 L = Ld * throughput;
-        //vec3 L = Ld * alb;
-        //result.color = accum(vec4(L, 1.f), x, y);
-        result.color = accum(vec4(L, 1.f), x, y);
+        result.color = accum(vec4(throughput, 1.f), x, y);
         result.hit = hit_rec.hit;
         return result;
     }
-
-    ////////////////////////////////
-    // albedo
-    /////////////////////////////////
-
-    // auto operator()(Ray r, visionaray::random_generator<float> &gen, int x, int y)
-    // {
-    //     using namespace visionaray;
-
-    //     using S = typename Ray::scalar_type;
-    //     using C = vector<4, S>;
-
-    //     henyey_greenstein<float> f;
-    //     f.g = 0.f; // isotropic
-
-    //     result_record<S> result;
-
-    //     vec3 throughput(1.f);
-    //     vec3 alb(0.0f);
-    //     auto hit_rec = intersect(r, bbox);
-
-    //     if (visionaray::any(hit_rec.hit))
-    //     {
-    //         r.ori += r.dir * hit_rec.tnear;
-    //         hit_rec.tfar -= hit_rec.tnear;
-
-    //         unsigned bounce = 0;
-
-    //         while (sample_interaction(r, hit_rec.tfar, gen))
-    //         {
-    //             throughput = albedo(r.ori);
-    //         }
-    //         // while (sample_interaction(r, hit_rec.tfar, gen))
-    //         // {
-    //         //     // Is the path length exceeded?
-    //         //     if (bounce++ >= 1024)
-    //         //     {
-    //         //         throughput = vec3(0.0f);
-    //         //         break;
-    //         //     }
-
-    //         //     //Russian roulette absorption
-    //         //     float prob = max_element(throughput);
-    //         //     if (prob < 0.2f)
-    //         //     {
-    //         //         if (gen.next() > prob)
-    //         //         {
-    //         //             throughput = vec3(0.0f);
-    //         //             break;
-    //         //         }
-    //         //         throughput /= prob;
-    //         //     }
-
-    //         //     // Sample phase function, directionality of scattering
-
-    //         //     vec3 scatter_dir;
-    //         //     float pdf;
-    //         //     //TODO: wie funktioniert sampling
-    //         //     f.sample(-r.dir, scatter_dir, pdf, gen);
-    //         //     r.dir = scatter_dir;
-
-    //         //     hit_rec = intersect(r, bbox);
-    //         // }
-    //     }
-
-    //     // Look up the environment
-    //     float t = y / heightf_;
-
-    //     vec3 Ld = (1.0f - t) * vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
-    //     vec3 L = Ld * throughput;
-    //     //vec3 L = Ld * alb;
-    //     result.color = accum(vec4(L, 1.f), x, y);
-
-    //     //result.hit = hit_rec.hit;
-    //     return result;
-    // }
     visionaray::aabb bbox;
     Volume volume;
     Transfunc transfunc;
