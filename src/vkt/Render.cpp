@@ -279,7 +279,7 @@ struct Viewer : ViewerBase
     void captureSecondGradient();
     void captureCharacteristics();
     void on_display();
-    void freeVectors();
+    void resetVectors();
     void on_key_press(visionaray::key_event const &event);
     void on_mouse_move(visionaray::mouse_event const &event);
     void on_space_mouse_move(visionaray::space_mouse_event const &event);
@@ -712,7 +712,7 @@ void Viewer::captureSecondGradient(){
 }
 
 
-void Viewer::freeVectors(){
+void Viewer::resetVectors(){
     #if VKT_HAVE_CUDA
     thrust::fill(device_accumAlbedoBuffer.begin(), device_accumAlbedoBuffer.end(), vec4(0,0,0,0));
     thrust::fill(device_accumPositionBuffer.begin(), device_accumPositionBuffer.end(), vec4(0,0,0,0));
@@ -1126,7 +1126,7 @@ void Viewer::on_display()
             renderState.animationFrame %= numAnimationFrames;
             updateVolumeTexture();
         }
-        freeVectors();
+        resetVectors();
     }
 }
 
