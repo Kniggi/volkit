@@ -10,13 +10,13 @@
 #include <memory>
 #include <vector>
 #include <chrono>
+#include <random>
 #if VKT_HAVE_CUDA
 #include <cuda_runtime.h>
 #include <thrust/device_vector.h>
 #endif
 
 #include <GL/glew.h>
-
 #include <visionaray/math/simd/simd.h>
 #include <visionaray/math/aabb.h>
 #include <visionaray/math/io.h>
@@ -76,6 +76,42 @@ using ViewerBase = viewer_glut;
 // I/O utility for camera lookat only - not fit for the general case!
 //
 
+inline mat3 matrixFromAxisAngle(vec3 a1, float angle) {
+
+    double c = cos(angle);
+    double s = sin(angle);
+    double t = 1.0 - c;
+	//  if axis is not already normalised then uncomment this
+	// double magnitude = Math.sqrt(a1.x*a1.x + a1.y*a1.y + a1.z*a1.z);
+	// if (magnitude==0) throw error;
+	// a1.x /= magnitude;
+	// a1.y /= magnitude;
+	// a1.z /= magnitude;
+
+    float m00 = c + a1.x*a1.x*t;
+    float m11 = c + a1.y*a1.y*t;
+    float m22 = c + a1.z*a1.z*t;
+
+
+    double tmp1 = a1.x*a1.y*t;
+    double tmp2 = a1.z*s;
+    float m10 = tmp1 + tmp2;
+    float m01 = tmp1 - tmp2;
+    tmp1 = a1.x*a1.z*t;
+    tmp2 = a1.y*s;
+    float m20 = tmp1 - tmp2;
+    float m02 = tmp1 + tmp2;    tmp1 = a1.y*a1.z*t;
+    tmp2 = a1.x*s;
+    float m21 = tmp1 + tmp2;
+    float m12 = tmp1 - tmp2;
+    mat3 res = mat3(
+        m00,m01,m02,
+        m10,m11,m12,
+        m20,m21,m22);
+    return res;
+}
+
+
 inline std::istream &operator>>(std::istream &in, thin_lens_camera &cam)
 {
     vec3 eye;
@@ -101,8 +137,8 @@ inline std::ostream &operator<<(std::ostream &out, thin_lens_camera const &cam)
 //
 bool captured = false;
 std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<double>> elapsed_time;
-const int MAX_SCREENSHOTS = 20;
-const int TIME_BETWEEN_SCREENSHOTS = 3;
+const int MAX_SCREENSHOTS = 400;
+const int TIME_BETWEEN_SCREENSHOTS = 5;
 struct Viewer : ViewerBase
 {
     //using RayType = basic_ray<simd::float4>;
@@ -129,7 +165,8 @@ struct Viewer : ViewerBase
     int frontBufferIndex;
 
     bool useCuda;
-
+    float rotation_factor = (2* 3.14159265359f)/20.0f;
+    int num_screenshots = 0;
     // Two render targets for double buffering
     cpu_buffer_rt<PF_RGBA32F, PF_UNSPECIFIED> host_rt[2];
     tiled_sched<RayType> host_sched;
@@ -137,6 +174,9 @@ struct Viewer : ViewerBase
     std::vector<vec4> host_accumAlbedoBuffer;
     std::vector<vec4> host_accumPositionBuffer;
     std::vector<vec4> host_accumGradientBuffer;
+    std::vector<vec4> host_accumSecondAlbedoBuffer;
+    std::vector<vec4> host_accumSecondCharacteristicsBuffer;
+    std::vector<vec4> host_accumSecondGradientBuffer;
     std::vector<vec4> host_accumCharacteristicsBuffer;
 #if VKT_HAVE_CUDA
     // Two render targets for double buffering
@@ -146,6 +186,9 @@ struct Viewer : ViewerBase
     thrust::device_vector<vec4> device_accumAlbedoBuffer;
     thrust::device_vector<vec4> device_accumPositionBuffer;
     thrust::device_vector<vec4> device_accumGradientBuffer;
+    thrust::device_vector<vec4> device_accumSecondAlbedoBuffer;
+    thrust::device_vector<vec4> device_accumSecondCharacteristicsBuffer;
+    thrust::device_vector<vec4> device_accumSecondGradientBuffer;
     thrust::device_vector<vec4> device_accumCharacteristicsBuffer;
     cuda_texture<int16_t, 3> device_volumeInt16;
     cuda_texture<uint8_t, 3> device_volumeUint8;
@@ -231,8 +274,12 @@ struct Viewer : ViewerBase
     void captureAlbedo();
     void capturePosition();
     void captureGradient();
+    void captureSecondAlbedo();
+    void captureSecondCharacteristics();
+    void captureSecondGradient();
     void captureCharacteristics();
     void on_display();
+    void freeVectors();
     void on_key_press(visionaray::key_event const &event);
     void on_mouse_move(visionaray::mouse_event const &event);
     void on_space_mouse_move(visionaray::space_mouse_event const &event);
@@ -414,11 +461,11 @@ void Viewer::captureRGB(){
     //albedobuffer is of type thrust::device_vector<vec3>
     thrust::host_vector<vec4> h_v(device_accumBuffer);
     std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
+    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/rgb/";
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth/rgb/rgb";
-
-    screenshotName.append(std::to_string(renderState.animationFrame));
+    screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append(".hdr");
+    
     image img(
         rt.width(),
         rt.height(),
@@ -447,10 +494,11 @@ void Viewer::capturePosition(){
     thrust::host_vector<vec4> h_v(device_accumPositionBuffer);
     std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth/position/position";
+    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/position/";
 
-    screenshotName.append(std::to_string(renderState.animationFrame));
-    screenshotName.append(".hdr");
+    screenshotName.append(std::to_string(num_screenshots));
+    screenshotName.append("_pos.hdr");
+    
     image img(
         rt.width(),
         rt.height(),
@@ -472,17 +520,112 @@ void Viewer::capturePosition(){
     }
    
 }
+void Viewer::captureCharacteristics(){
+    auto const &rt = host_rt[frontBufferIndex];
+    //albedobuffer is of type thrust::device_vector<vec3>
+    thrust::host_vector<vec4> h_v(device_accumCharacteristicsBuffer);
+    std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
 
+     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/characteristics/";
+
+    screenshotName.append(std::to_string(num_screenshots));
+    screenshotName.append("_vol1.hdr");
+    image img(
+        rt.width(),
+        rt.height(),
+        PF_RGB8,
+        reinterpret_cast<uint8_t const *>(output.data()));
+
+    image::save_option opt1;
+
+    if (img.save(screenshotName.c_str(), {opt1}))
+    {
+        std::string message(screenshotName);
+        message.append(" saved");
+        if (!message.empty())
+            std::cout << message << '\n';
+    }
+    else
+    {
+        VKT_LOG(vkt::logging::Level::Error) << " Error taking screen shot";
+    }
+   
+}
+void Viewer::captureSecondCharacteristics(){
+    auto const &rt = host_rt[frontBufferIndex];
+    //albedobuffer is of type thrust::device_vector<vec3>
+    thrust::host_vector<vec4> h_v(device_accumSecondCharacteristicsBuffer);
+    std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
+
+    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondCharacteristics/";
+
+    screenshotName.append(std::to_string(num_screenshots));
+    screenshotName.append("_vol2.hdr");
+    
+    image img(
+        rt.width(),
+        rt.height(),
+        PF_RGB8,
+        reinterpret_cast<uint8_t const *>(output.data()));
+
+    image::save_option opt1;
+
+    if (img.save(screenshotName.c_str(), {opt1}))
+    {
+        std::string message(screenshotName);
+        message.append(" saved");
+        if (!message.empty())
+            std::cout << message << '\n';
+    }
+    else
+    {
+        VKT_LOG(vkt::logging::Level::Error) << " Error taking screen shot";
+    }
+   
+}
 void Viewer::captureAlbedo(){
     auto const &rt = host_rt[frontBufferIndex];
     //albedobuffer is of type thrust::device_vector<vec3>
     thrust::host_vector<vec4> h_v(device_accumAlbedoBuffer);
     std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth/albedo/albedo";
+    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/albedo/";
 
-    screenshotName.append(std::to_string(renderState.animationFrame));
-    screenshotName.append(".hdr");
+    screenshotName.append(std::to_string(num_screenshots));
+    screenshotName.append("_alb1.hdr");
+    
+    image img(
+        rt.width(),
+        rt.height(),
+        PF_RGB8,
+        reinterpret_cast<uint8_t const *>(output.data()));
+
+    image::save_option opt1;
+
+    if (img.save(screenshotName.c_str(), {opt1}))
+    {
+        std::string message(screenshotName);
+        message.append(" saved");
+        if (!message.empty())
+            std::cout << message << '\n';
+    }
+    else
+    {
+        VKT_LOG(vkt::logging::Level::Error) << " Error taking screen shot";
+    }
+   
+}
+void Viewer::captureSecondAlbedo(){
+    auto const &rt = host_rt[frontBufferIndex];
+    //albedobuffer is of type thrust::device_vector<vec3>
+    thrust::host_vector<vec4> h_v(device_accumSecondAlbedoBuffer);
+    std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
+
+    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondAlbedo/";
+
+    screenshotName.append(std::to_string(num_screenshots));
+    screenshotName.append("_alb2.hdr");
+    
     image img(
         rt.width(),
         rt.height(),
@@ -511,10 +654,10 @@ void Viewer::captureGradient(){
     thrust::host_vector<vec4> h_v(device_accumGradientBuffer);
     std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth/gradient/gradient";
+    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/gradient/";
 
-    screenshotName.append(std::to_string(renderState.animationFrame));
-    screenshotName.append(".hdr");
+    screenshotName.append(std::to_string(num_screenshots));
+    screenshotName.append("_norm1.hdr");
     image img(
         rt.width(),
         rt.height(),
@@ -536,17 +679,16 @@ void Viewer::captureGradient(){
     }
    
 }
-
-void Viewer::captureCharacteristics(){
+void Viewer::captureSecondGradient(){
     auto const &rt = host_rt[frontBufferIndex];
     //albedobuffer is of type thrust::device_vector<vec3>
-    thrust::host_vector<vec4> h_v(device_accumCharacteristicsBuffer);
+    thrust::host_vector<vec4> h_v(device_accumSecondGradientBuffer);
     std::vector<vector<3, unorm<8>>> output (h_v.begin(),h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth/characteristics/characteristics";
+    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondGradient/";
 
-    screenshotName.append(std::to_string(renderState.animationFrame));
-    screenshotName.append(".hdr");
+    screenshotName.append(std::to_string(num_screenshots));
+    screenshotName.append("_norm2.hdr");
     image img(
         rt.width(),
         rt.height(),
@@ -569,6 +711,18 @@ void Viewer::captureCharacteristics(){
    
 }
 
+
+void Viewer::freeVectors(){
+    #if VKT_HAVE_CUDA
+    thrust::fill(device_accumAlbedoBuffer.begin(), device_accumAlbedoBuffer.end(), vec4(0,0,0,0));
+    thrust::fill(device_accumPositionBuffer.begin(), device_accumPositionBuffer.end(), vec4(0,0,0,0));
+    thrust::fill(device_accumGradientBuffer.begin(), device_accumGradientBuffer.end(), vec4(0,0,0,0));
+    thrust::fill(device_accumCharacteristicsBuffer.begin(), device_accumCharacteristicsBuffer.end(), vec4(0,0,0,0));
+    thrust::fill(device_accumSecondAlbedoBuffer.begin(), device_accumSecondAlbedoBuffer.end(), vec4(0,0,0,0));
+    thrust::fill(device_accumSecondGradientBuffer.begin(), device_accumSecondGradientBuffer.end(), vec4(0,0,0,0));
+    thrust::fill(device_accumSecondCharacteristicsBuffer.begin(), device_accumSecondCharacteristicsBuffer.end(), vec4(0,0,0,0));
+    #endif
+}
 void Viewer::on_display()
 {
     if (transfuncEditor.updated())
@@ -665,7 +819,8 @@ void Viewer::on_display()
         return kernel;
     };
 
-    auto prepareMultiScatteringKernel = [&](auto volume_tex, auto transfunc_tex, auto accumBuffer, auto accumAlbedoBuffer, auto accumPositionBuffer, auto accumGradientBuffer, auto accumCharacteristicsBuffer)
+    auto prepareMultiScatteringKernel = [&](auto volume_tex, auto transfunc_tex, auto accumBuffer, auto accumAlbedoBuffer, auto accumPositionBuffer, auto accumGradientBuffer,
+                                            auto accumCharacteristicsBuffer, auto accumSecondAlbedoBuffer, auto accumSecondGradientBuffer, auto accumSecondCharacteristicsBuffer)
     {
         using VolumeTex = decltype(volume_tex);
         using TransfuncTex = decltype(transfunc_tex);
@@ -685,6 +840,9 @@ void Viewer::on_display()
         kernel.accumPositionBuffer = accumPositionBuffer;
         kernel.accumGradientBuffer = accumGradientBuffer;
         kernel.accumCharacteristicsBuffer = accumCharacteristicsBuffer;
+        kernel.accumSecondAlbedoBuffer = accumSecondAlbedoBuffer;
+        kernel.accumSecondGradientBuffer = accumSecondGradientBuffer;
+        kernel.accumSecondCharacteristicsBuffer = accumSecondCharacteristicsBuffer;
         kernel.sRGB = (bool)renderState.sRGB;
 
         return kernel;
@@ -748,7 +906,11 @@ void Viewer::on_display()
                                     thrust::raw_pointer_cast(device_accumAlbedoBuffer.data()),
                                     thrust::raw_pointer_cast(device_accumPositionBuffer.data()),
                                     thrust::raw_pointer_cast(device_accumGradientBuffer.data()),
-                                    thrust::raw_pointer_cast(device_accumCharacteristicsBuffer.data()));
+                                    thrust::raw_pointer_cast(device_accumCharacteristicsBuffer.data()),
+                                    thrust::raw_pointer_cast(device_accumSecondAlbedoBuffer.data()),
+                                    thrust::raw_pointer_cast(device_accumSecondGradientBuffer.data()),
+                                    thrust::raw_pointer_cast(device_accumSecondCharacteristicsBuffer.data()))
+                                    ;
                                 device_sched.frame(kernel, sparams);
                             }
                             else
@@ -760,7 +922,11 @@ void Viewer::on_display()
                                     thrust::raw_pointer_cast(device_accumAlbedoBuffer.data()),
                                     thrust::raw_pointer_cast(device_accumPositionBuffer.data()),
                                     thrust::raw_pointer_cast(device_accumGradientBuffer.data()),
-                                    thrust::raw_pointer_cast(device_accumCharacteristicsBuffer.data()));
+                                    thrust::raw_pointer_cast(device_accumCharacteristicsBuffer.data()),
+                                    thrust::raw_pointer_cast(device_accumSecondAlbedoBuffer.data()),
+                                    thrust::raw_pointer_cast(device_accumSecondGradientBuffer.data()),
+                                    thrust::raw_pointer_cast(device_accumSecondCharacteristicsBuffer.data())
+                                    );
                                 device_sched.frame(kernel, sparams);
                             }
                         }
@@ -827,7 +993,11 @@ void Viewer::on_display()
                                     host_accumAlbedoBuffer.data(),
                                     host_accumPositionBuffer.data(),
                                     host_accumGradientBuffer.data(),
-                                    host_accumCharacteristicsBuffer.data());
+                                    host_accumCharacteristicsBuffer.data(),
+                                    host_accumSecondAlbedoBuffer.data(),
+                                    host_accumSecondGradientBuffer.data(),
+                                    host_accumSecondCharacteristicsBuffer.data()
+                                    );
                                 host_sched.frame(kernel, sparams);
                             }
                             else
@@ -839,7 +1009,11 @@ void Viewer::on_display()
                                     host_accumAlbedoBuffer.data(),
                                     host_accumPositionBuffer.data(),
                                     host_accumGradientBuffer.data(),
-                                    host_accumCharacteristicsBuffer.data());
+                                    host_accumCharacteristicsBuffer.data(),
+                                    host_accumSecondAlbedoBuffer.data(),
+                                    host_accumSecondGradientBuffer.data(),
+                                    host_accumSecondCharacteristicsBuffer.data()
+                                    );
                                 host_sched.frame(kernel, sparams);
                             }
                         }
@@ -849,7 +1023,7 @@ void Viewer::on_display()
         }
     };
 
-    //   if (frame_num < 2){
+  if (frame_num < 1){
     if (structured)
     {
         switch (structuredVolume.getDataFormat())
@@ -879,10 +1053,11 @@ void Viewer::on_display()
     {
         callKernel(uint8_t{});
     }
-    //  }
+    }
     // display the rendered image
 
     auto bgcolor = background_color();
+
     glClearColor(bgcolor.x, bgcolor.y, bgcolor.z, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -906,31 +1081,52 @@ void Viewer::on_display()
     std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now()-elapsed_time;
     if (elapsed_seconds.count() > TIME_BETWEEN_SCREENSHOTS)
     {
-        if (renderState.animationFrame + 1 == MAX_SCREENSHOTS)
+        if (num_screenshots == MAX_SCREENSHOTS)
         {
             viewer_glut::quit();
         }
-        //take screenshot, switch to next animationFrame
-        std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth//rgb/rgb";
-
-        screenshotName.append(std::to_string(renderState.animationFrame));
-        screenshotName.append(".hdr");
-
-        renderState.snapshotTool.fileName = screenshotName.c_str();
-        std::string message = "Saved to " + screenshotName;
-        renderState.snapshotTool.message = message.c_str();
+       
         captureRGB();
         captureAlbedo();
         capturePosition();
         captureGradient();
         captureCharacteristics();
-        renderState.animationFrame++;
+        captureSecondAlbedo();
+        captureSecondCharacteristics();
+        captureSecondGradient();
 
-        renderState.animationFrame %= numAnimationFrames;
-        updateVolumeTexture();
+        
+        num_screenshots++;
+        vec3 up(0, 1, 0);
+        // float diagonal = length(bbox.size());
+        // float r = diagonal * 0.5f;
+      
+        //float dotsurfeye = dot(vec3(0,0,1), cam.eye());
+        vec3 eye(0,0,0);
+        vec3 right = normalize(cross(cam.eye(), up));
+        vec3 camFocusVector( cam.eye() - bbox.center());
+        mat3 rotMat1 = matrixFromAxisAngle(up, rotation_factor);
+        mat3 rotMat2 = matrixFromAxisAngle(right, rotation_factor);
+        camFocusVector = rotMat1 * camFocusVector;
+        camFocusVector = rotMat2 * camFocusVector;
+        eye = camFocusVector + bbox.center();
+        cam.look_at(eye, bbox.center(),up);
+
+
+        renderState.initialCamera.eye = {eye.x, eye.y, eye.z};
+        renderState.initialCamera.center = {bbox.center().x, bbox.center().y, bbox.center().z};
+        renderState.initialCamera.up = {up.x, up.y, up.z};
+       //updateVolumeTexture();
         clearFrame();
-
+        
         elapsed_time = std::chrono::system_clock::now();
+        if(num_screenshots % 20 ==0){
+            renderState.animationFrame++;
+           
+            renderState.animationFrame %= numAnimationFrames;
+            updateVolumeTexture();
+        }
+        freeVectors();
     }
 }
 
@@ -983,6 +1179,9 @@ void Viewer::on_resize(int w, int h)
         host_accumAlbedoBuffer.resize(w * h);
         host_accumPositionBuffer.resize(w * h);
         host_accumGradientBuffer.resize(w * h);
+        host_accumSecondAlbedoBuffer.resize(w * h);
+        host_accumSecondCharacteristicsBuffer.resize(w * h);
+        host_accumSecondGradientBuffer.resize(w * h);
         host_accumCharacteristicsBuffer.resize(w * h);
         host_rt[0].resize(w, h);
         host_rt[1].resize(w, h);
@@ -992,6 +1191,9 @@ void Viewer::on_resize(int w, int h)
         device_accumPositionBuffer.resize(w * h);
         device_accumBuffer.resize(w * h);
         device_accumGradientBuffer.resize(w * h);
+        device_accumSecondAlbedoBuffer.resize(w * h);
+        device_accumSecondCharacteristicsBuffer.resize(w * h);
+        device_accumSecondGradientBuffer.resize(w * h);
         device_accumCharacteristicsBuffer.resize(w * h);
         device_rt[0].resize(w, h);
         device_rt[1].resize(w, h);

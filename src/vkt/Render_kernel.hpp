@@ -11,6 +11,9 @@
 #include <visionaray/math/vector.h>
 #include <visionaray/phase_function.h>
 #include <visionaray/result_record.h>
+#include <visionaray/material.h>
+#include <visionaray/shade_record.h>
+#include <visionaray/surface_interaction.h>
 #include <common/image.h>
 #include <vkt/Render.hpp>
 
@@ -57,6 +60,9 @@ struct AccumulationKernel
     visionaray::vec4f *accumPositionBuffer = nullptr;
     visionaray::vec4f *accumGradientBuffer = nullptr;
     visionaray::vec4f *accumCharacteristicsBuffer = nullptr;
+    visionaray::vec4f *accumSecondGradientBuffer = nullptr;
+    visionaray::vec4f *accumSecondAlbedoBuffer = nullptr;
+    visionaray::vec4f *accumSecondCharacteristicsBuffer = nullptr;
     VSNRAY_FUNC
     visionaray::vec4f accum(visionaray::vec4f src, int x, int y)
     {
@@ -77,9 +83,6 @@ struct AccumulationKernel
         using namespace visionaray;
 
         accumAlbedoBuffer[y * width + x] = src;
-        if (sRGB)
-            accumAlbedoBuffer[y * width + x].xyz() = linear_to_srgb(accumAlbedoBuffer[y * width + x].xyz());
-    
     }
     VSNRAY_FUNC
     void accum_position(visionaray::vec4f src, int x, int y)
@@ -87,8 +90,6 @@ struct AccumulationKernel
         using namespace visionaray;
 
         accumPositionBuffer[y * width + x] = src;
-        if (sRGB)
-            accumPositionBuffer[y * width + x].xyz() = linear_to_srgb(accumPositionBuffer[y * width + x].xyz());
     }
     VSNRAY_FUNC
     void accum_gradient(visionaray::vec4f src, int x, int y)
@@ -96,8 +97,27 @@ struct AccumulationKernel
         using namespace visionaray;
 
         accumGradientBuffer[y * width + x] = src;
-        if (sRGB)
-            accumGradientBuffer[y * width + x].xyz() = linear_to_srgb(accumGradientBuffer[y * width + x].xyz());
+    }
+    VSNRAY_FUNC
+    void accum_second_albedo(visionaray::vec4f src, int x, int y)
+    {
+        using namespace visionaray;
+
+        accumSecondAlbedoBuffer[y * width + x] = src;
+    }
+    VSNRAY_FUNC
+    void accum_second_characteristics(visionaray::vec4f src, int x, int y)
+    {
+        using namespace visionaray;
+
+        accumSecondCharacteristicsBuffer[y * width + x] = src;
+    }
+    VSNRAY_FUNC
+    void accum_second_gradient(visionaray::vec4f src, int x, int y)
+    {
+        using namespace visionaray;
+
+        accumSecondGradientBuffer[y * width + x] = src;
     }
     VSNRAY_FUNC
     void accum_characteristics(visionaray::vec4f src, int x, int y)
@@ -105,8 +125,6 @@ struct AccumulationKernel
         using namespace visionaray;
 
         accumCharacteristicsBuffer[y * width + x] = src;
-        if (sRGB)
-            accumCharacteristicsBuffer[y * width + x].xyz() = linear_to_srgb(accumCharacteristicsBuffer[y * width + x].xyz());
     }
 };
 
@@ -392,10 +410,11 @@ struct MultiScatteringKernel : AccumulationKernel
         using C = vector<4, S>;
        
         henyey_greenstein<float> f;
+        float const gradient_factor = 0.5f; 
         f.g = 0.f; // isotropic
         vec3 initial_position(r.ori);
         result_record<S> result;
-
+        matte<float> f_brdf;
         vec3 throughput(1.0f);
         //aabb bounding box: axis algned bounding box surrounding the volume, return type is hit_record
         auto hit_rec = intersect(r, bbox);
@@ -418,29 +437,51 @@ struct MultiScatteringKernel : AccumulationKernel
                 }
                 
                 throughput *= albedo(r.ori);
+                vector<3, float> boxSize(bbox.size());
+                vector<3, float> gradient_val = gradient(visionaray::vector<3, float>(r.ori / boxSize));
+                float gradient_mag = length(gradient_val);
                 if (bounce==1)
                 {
 
                     //albedo map
                     
-                    accum_albedo(vec4(vec3f(1.0f, 1.0f, 1.0f) * throughput, 1.f), x, y);
+                    accum_albedo(vec4(albedo(r.ori), 1.f), x, y);
                     //position map
                    
                     accum_position(vec4(normalize(r.ori), 1.f),x,y);
 
                     //gradient map
-                    vector<3, float> boxSize(bbox.size());
-                    vector<3, float> gradient_val = gradient(visionaray::vector<3, float>(r.ori / boxSize));
+                  
                     
                     accum_gradient(vec4(gradient_val, 1.0f), x, y);
 
                     
                     //gradient magnitude, optical thickness, extinction coefficient 
-                    float gradient_mag = sqrt(pow(gradient_val.data()[0],2.0) + pow(gradient_val.data()[1],2.0) + pow(gradient_val.data()[2],2.0));
-                    float optical_thickness = (pow(mu(initial_position),2)/2) - (pow(mu(r.ori),2)/2);
+                    
+                    float optical_thickness = 0.5f;
                     vec3 characteristics(gradient_mag,optical_thickness,mu(r.ori));
                     vec4 res (characteristics,1.0f);
                     accum_characteristics(res,x,y);
+                }
+
+                if (bounce==2)
+                {
+
+                    //albedo map
+                    
+                    accum_second_albedo(vec4(albedo(r.ori), 1.f), x, y);
+
+                    //gradient map
+                  
+                    
+                    accum_second_gradient(vec4(gradient_val, 1.0f), x, y);
+
+                    
+                    //gradient magnitude, optical thickness, extinction coefficient 
+                    float optical_thickness = 0.5f;
+                    vec3 characteristics(gradient_mag,optical_thickness,mu(r.ori));
+                    vec4 res (characteristics,1.0f);
+                    accum_second_characteristics(res,x,y);
                 }
                 //  Russian roulette absorption
                 float prob = max_element(throughput);
@@ -456,13 +497,42 @@ struct MultiScatteringKernel : AccumulationKernel
 
                 // Sample phase function, directionality of scattering
 
-                vec3 scatter_dir;
-                float pdf;
-                //use henhey greenstein to sample scattering direction, scatter_dir and is result where ray direction goes, pdf currently not used
-                f.sample(-r.dir, scatter_dir, pdf, gen);
-                r.dir = scatter_dir;
+               
 
-                hit_rec = intersect(r, bbox);
+                vector<3, float> scatter_dir;
+                float pdf;
+                auto scattering_prob = 1-exp( -1 * gradient_mag * gradient_factor);
+                 f.sample(-r.dir, scatter_dir, pdf, gen);
+                    r.dir = scatter_dir;
+                    hit_rec = intersect(r, bbox);
+                // if(gen.next() > scattering_prob){
+                // //use henhey greenstein to sample scattering direction, scatter_dir and is result where ray direction goes, pdf currently not used
+                //     f.sample(-r.dir, scatter_dir, pdf, gen);
+                //     r.dir = scatter_dir;
+                //     hit_rec = intersect(r, bbox);
+                // }
+                // else{
+
+                  
+                //     shade_record<float> sr;
+                //     sr.normal = normalize(gradient_val);
+                //     sr.geometric_normal = normalize(gradient_val);
+                //     sr.view_dir = -r.dir;
+                //     sr.tex_color = albedo(r.ori);
+                //     //auto pdf = f_brdf.pdf(sr, surface_interaction::Unspecified); 
+
+                //     int inter = 1;
+                //     f_brdf.sample(
+                //         sr,
+                //         scatter_dir,
+                //         pdf,
+                //         inter,
+                //         gen);
+                   
+                //     r.dir = scatter_dir;
+                //     hit_rec = intersect(r, bbox);
+                // }
+          
             }
         }
         //black background
