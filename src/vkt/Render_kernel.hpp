@@ -64,6 +64,19 @@ struct AccumulationKernel
     visionaray::vec4f *accumSecondAlbedoBuffer = nullptr;
     visionaray::vec4f *accumSecondCharacteristicsBuffer = nullptr;
     VSNRAY_FUNC
+    void init_buffers(int x, int y)
+    {
+        using namespace visionaray;
+
+        accumAlbedoBuffer[y * width + x] = vec4(1.0f,1.0f,1.0f,1.0f);
+        accumPositionBuffer[y * width + x] = vec4(1.0f,1.0f,1.0f,1.0f);
+        accumGradientBuffer[y * width + x] = vec4(1.0f,1.0f,1.0f,1.0f);
+        accumCharacteristicsBuffer[y * width + x] = vec4(1.0f,1.0f,1.0f,1.0f);
+        accumSecondGradientBuffer[y * width + x] = vec4(1.0f,1.0f,1.0f,1.0f);
+        accumSecondAlbedoBuffer[y * width + x] = vec4(1.0f,1.0f,1.0f,1.0f);
+        accumSecondCharacteristicsBuffer[y * width + x] = vec4(1.0f,1.0f,1.0f,1.0f);
+    }
+    VSNRAY_FUNC
     visionaray::vec4f accum(visionaray::vec4f src, int x, int y)
     {
         using namespace visionaray;
@@ -410,11 +423,12 @@ struct MultiScatteringKernel : AccumulationKernel
         using C = vector<4, S>;
        
         henyey_greenstein<float> f;
-        float const gradient_factor = 0.5f; 
+        float const gradient_factor = 1.0f; 
         f.g = 0.f; // isotropic
         vec3 initial_position(r.ori);
         result_record<S> result;
         matte<float> f_brdf;
+        init_buffers(x, y);
         vec3 throughput(1.0f);
         //aabb bounding box: axis algned bounding box surrounding the volume, return type is hit_record
         auto hit_rec = intersect(r, bbox);
@@ -505,39 +519,35 @@ struct MultiScatteringKernel : AccumulationKernel
                  f.sample(-r.dir, scatter_dir, pdf, gen);
                     r.dir = scatter_dir;
                     hit_rec = intersect(r, bbox);
-                // if(gen.next() > scattering_prob){
-                // //use henhey greenstein to sample scattering direction, scatter_dir and is result where ray direction goes, pdf currently not used
-                //     f.sample(-r.dir, scatter_dir, pdf, gen);
-                //     r.dir = scatter_dir;
-                //     hit_rec = intersect(r, bbox);
-                // }
-                // else{
+                if(gen.next() > scattering_prob){
+                //use henhey greenstein to sample scattering direction, scatter_dir and is result where ray direction goes, pdf currently not used
+                    f.sample(-r.dir, scatter_dir, pdf, gen);
+                    r.dir = scatter_dir;
+                    hit_rec = intersect(r, bbox);
+                }
+                else{
 
                   
-                //     shade_record<float> sr;
-                //     sr.normal = normalize(gradient_val);
-                //     sr.geometric_normal = normalize(gradient_val);
-                //     sr.view_dir = -r.dir;
-                //     sr.tex_color = albedo(r.ori);
-                //     //auto pdf = f_brdf.pdf(sr, surface_interaction::Unspecified); 
+                    shade_record<float> sr;
+                    sr.normal = normalize(gradient_val);
+                    sr.geometric_normal = normalize(gradient_val);
+                    sr.view_dir = -r.dir;
+                    sr.tex_color = albedo(r.ori);
+                    //auto pdf = f_brdf.pdf(sr, surface_interaction::Unspecified); 
 
-                //     int inter = 1;
-                //     f_brdf.sample(
-                //         sr,
-                //         scatter_dir,
-                //         pdf,
-                //         inter,
-                //         gen);
+                    int inter = 1;
+                    f_brdf.sample(
+                        sr,
+                        scatter_dir,
+                        pdf,
+                        inter,
+                        gen);
                    
-                //     r.dir = scatter_dir;
-                //     hit_rec = intersect(r, bbox);
-                // }
+                    r.dir = scatter_dir;
+                    hit_rec = intersect(r, bbox);
+                }
           
             }
-        }
-        //black background
-        if(throughput == vec3(1.0f)){
-              throughput = vec3(0.0f);
         }
         // Look up the environment
         float t = y / heightf_;
