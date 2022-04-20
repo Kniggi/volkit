@@ -1265,12 +1265,6 @@ static void Render_impl(
         -dot(eye, s), -dot(eye, u), -dot(eye, f), 1.0f
         );
 
-
- 
-   
-
-    
-
     viewer.proj(0, 0) = 1.0f / (viewer.width()/2.0f);
     viewer.proj(0, 1) = 0.0f;
     viewer.proj(0, 2) = 0.0f;
