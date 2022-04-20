@@ -155,7 +155,9 @@ struct Viewer : ViewerBase
     std::vector<vkt::HierarchicalVolumeView> hierarchicalVolumeViews;
 
     aabb bbox;
-    thin_lens_camera cam;
+    matrix_camera cam;
+    mat4 view;
+    mat4 proj;
     unsigned frame_num;
 
     vkt::TransfuncEditor transfuncEditor;
@@ -287,16 +289,6 @@ struct Viewer : ViewerBase
     void on_space_mouse_move(visionaray::space_mouse_event const &event);
     void on_resize(int w, int h);
 
-    void load_camera(std::string filename)
-    {
-        std::ifstream file(filename);
-        if (file.good())
-        {
-            file >> cam;
-            clearFrame();
-            std::cout << "Load camera from file: " << filename << '\n';
-        }
-    }
 };
 
 Viewer::Viewer(
@@ -885,7 +877,8 @@ void Viewer::on_display()
                         pixel_sampler::jittered_type blend_params;
                         auto sparams = make_sched_params(
                             blend_params,
-                            cam,
+                            view,
+                            proj,
                             device_rt[!frontBufferIndex]);
 
                         if (renderState.renderAlgo == vkt::RenderAlgo::RayMarching)
@@ -949,7 +942,8 @@ void Viewer::on_display()
                         pixel_sampler::jittered_type blend_params;
                         auto sparams = make_sched_params(
                             blend_params,
-                            cam,
+                            view,
+                            proj,
                             host_rt[!frontBufferIndex]);
 
                         if (renderState.renderAlgo == vkt::RenderAlgo::RayMarching)
@@ -1028,10 +1022,7 @@ void Viewer::on_display()
                 });
         }
     };
-    if (prepareNoisyData)
-    {
-        if(frame_num < 1)
-        {
+   
 
             if (structured)
             {
@@ -1058,36 +1049,7 @@ void Viewer::on_display()
             {
                 callKernel(uint8_t{});
             }
-        }
-    }
-    else
-    {
-        if (structured)
-        {
-            switch (structuredVolume.getDataFormat())
-            {
-            case vkt::DataFormat::Int16:
-                callKernel(int16_t{});
-                break;
-            case vkt::DataFormat::UInt8:
-                callKernel(uint8_t{});
-                break;
-            case vkt::DataFormat::UInt16:
-                callKernel(uint16_t{});
-                break;
-            case vkt::DataFormat::UInt32:
-                callKernel(uint32_t{});
-                break;
-            case vkt::DataFormat::Float32:
-                callKernel(float{});
-                break;
-            }
-        }
-        else // hierarchical
-        {
-            callKernel(uint8_t{});
-        }
-    }
+        
 
     // display the rendered image
 
@@ -1138,25 +1100,26 @@ void Viewer::switchView()
     }
 
     num_screenshots++;
-    vec3 up(0, 1, 0);
-    // float diagonal = length(bbox.size());
-    // float r = diagonal * 0.5f;
+    // vec3 up(0, 1, 0);
+    // // float diagonal = length(bbox.size());
+    // // float r = diagonal * 0.5f;
 
-    // float dotsurfeye = dot(vec3(0,0,1), cam.eye());
-    vec3 eye(0, 0, 0);
-    vec3 right = normalize(cross(cam.eye(), up));
-    vec3 camFocusVector(cam.eye() - bbox.center());
-    mat3 rotMat1 = matrixFromAxisAngle(up, rotation_factor);
-    mat3 rotMat2 = matrixFromAxisAngle(right, rotation_factor);
-    camFocusVector = rotMat1 * camFocusVector;
-    camFocusVector = rotMat2 * camFocusVector;
-    eye = camFocusVector + bbox.center();
-    cam.look_at(eye, bbox.center(), up);
+    // // float dotsurfeye = dot(vec3(0,0,1), cam.eye());
+    // vec3 eye(0, 0, 0);
+    // vec3 right = normalize(cross(cam.eye(), up));
+    // vec3 camFocusVector(cam.eye() - bbox.center());
+    // mat3 rotMat1 = matrixFromAxisAngle(up, rotation_factor);
+    // mat3 rotMat2 = matrixFromAxisAngle(right, rotation_factor);
+    // camFocusVector = rotMat1 * camFocusVector;
+    // camFocusVector = rotMat2 * camFocusVector;
+    // eye = camFocusVector + bbox.center();
+    // cam.look_at(eye, bbox.center(), up);
 
-    renderState.initialCamera.eye = {eye.x, eye.y, eye.z};
-    renderState.initialCamera.center = {bbox.center().x, bbox.center().y, bbox.center().z};
-    renderState.initialCamera.up = {up.x, up.y, up.z};
-    // updateVolumeTexture();
+    // renderState.initialCamera.eye = {eye.x, eye.y, eye.z};
+    // renderState.initialCamera.center = {bbox.center().x, bbox.center().y, bbox.center().z};
+    // renderState.initialCamera.up = {up.x, up.y, up.z};
+    // // updateVolumeTexture();
+    
     clearFrame();
 
     elapsed_time = std::chrono::system_clock::now();
@@ -1207,9 +1170,9 @@ void Viewer::on_resize(int w, int h)
     if (renderFuture.valid())
         renderFuture.wait();
 
-    cam.set_viewport(0, 0, w, h);
-    float aspect = w / static_cast<float>(h);
-    cam.perspective(45.0f * constants::degrees_to_radians<float>(), aspect, 0.001f, 1000.0f);
+    // cam.set_viewport(0, 0, w, h);
+    // float aspect = w / static_cast<float>(h);
+    // cam.perspective(45.0f * constants::degrees_to_radians<float>(), aspect, 0.001f, 1000.0f);
 
     {
         std::unique_lock<std::mutex> l(displayMutex);
@@ -1278,53 +1241,59 @@ static void Render_impl(
 
     float aspect = viewer.width() / static_cast<float>(viewer.height());
 
-    if (renderState.initialCamera.isSet)
-    {
-        vec3 eye(renderState.initialCamera.eye.x, renderState.initialCamera.eye.y, renderState.initialCamera.eye.z);
-        vec3 center(renderState.initialCamera.center.x, renderState.initialCamera.center.y, renderState.initialCamera.center.z);
-        vec3 up(renderState.initialCamera.up.x, renderState.initialCamera.up.y, renderState.initialCamera.up.z);
-        viewer.cam.look_at(eye, center, up);
-        viewer.cam.perspective(renderState.initialCamera.fovy * constants::degrees_to_radians<float>(), aspect, .001f, 1000.f);
-        viewer.cam.set_lens_radius(renderState.initialCamera.lensRadius);
-        viewer.cam.set_focal_distance(renderState.initialCamera.focalDistance);
-    }
-    else
-    {
-        viewer.cam.perspective(
-            45.f * constants::degrees_to_radians<float>(),
-            aspect,
-            .001f,
-            1000.f);
-        viewer.cam.set_lens_radius(0.05f);
-        viewer.cam.set_focal_distance(10.0f);
-        viewer.cam.view_all(viewer.bbox);
-    }
+    float fovy = 45.f * constants::degrees_to_radians<float>();
 
-    viewer.add_manipulator(std::make_shared<arcball_manipulator>(viewer.cam, mouse::Left));
-    viewer.add_manipulator(std::make_shared<pan_manipulator>(viewer.cam, mouse::Middle));
-    // Additional "Alt + LMB" pan manipulator for setups w/o middle mouse button
-    viewer.add_manipulator(std::make_shared<pan_manipulator>(viewer.cam, mouse::Left, keyboard::Alt));
-    viewer.add_manipulator(std::make_shared<zoom_manipulator>(viewer.cam, mouse::Right));
+    float diagonal = length(viewer.bbox.size());
+    float r = diagonal *0.5f;
+    vec3 eye = viewer.bbox.center() + vec3(0, 0, r +r /std::atan(fovy));
+    
+    
+    
+    
+    vec3 up = vec3(0.0f,1.0f,0.0f);
+    vec3 f = normalize(eye - viewer.bbox.center());
+    vec3 s = normalize(cross(up, f));
+    vec3 u = cross(f, s);
+
+
+    float z_near = 0.001f;
+    float z_far = 1000.0f;
+    viewer.view = mat4(
+        s.x, u.x, f.x, 0.0f,
+        s.y, u.y, f.y, 0.0f,
+        s.z, u.z, f.z, 0.0f,
+        -dot(eye, s), -dot(eye, u), -dot(eye, f), 1.0f
+        );
+
+
+ 
+   
+
+    
+
+    viewer.proj(0, 0) = 1.0f / (viewer.width()/2.0f);
+    viewer.proj(0, 1) = 0.0f;
+    viewer.proj(0, 2) = 0.0f;
+    viewer.proj(0, 3) = 0.0f;
+    
+    viewer.proj(1, 0) = 0.0f;
+    viewer.proj(1, 1) = 1.0f / (viewer.height()/2.0f);
+    viewer.proj(1, 2) = 0.0f;
+    viewer.proj(1, 3) = 0.0f;
+
+    viewer.proj(2, 0) = 0.0f;
+    viewer.proj(2, 1) = 0.0f;
+    viewer.proj(2, 2) = -2.0f / (z_far - z_near);
+    viewer.proj(2, 3) = -((z_far + z_near) / (z_far - z_near));
+
+    viewer.proj(3, 0) = 0.0f;
+    viewer.proj(3, 1) = 0.0f;
+    viewer.proj(3, 2) = 0.0f;
+    viewer.proj(3, 3) = 1.0f;
+    
     viewer.event_loop();
 
-    // when finished, write out the new render state
-    if (newRenderState != nullptr)
-    {
-        // TODO: transfer function!!
-
-        newRenderState->viewportWidth = viewer.width();
-        newRenderState->viewportHeight = viewer.height();
-        // Store the current camera in initialCamera..
-        vec3 eye = viewer.cam.eye();
-        vec3 center = viewer.cam.center();
-        vec3 up = viewer.cam.up();
-        newRenderState->initialCamera.eye = {eye.x, eye.y, eye.z};
-        newRenderState->initialCamera.center = {center.x, center.y, center.z};
-        newRenderState->initialCamera.up = {up.x, up.y, up.z};
-        newRenderState->initialCamera.fovy = viewer.cam.fovy();
-        newRenderState->initialCamera.lensRadius = viewer.cam.get_lens_radius();
-        newRenderState->initialCamera.focalDistance = viewer.cam.get_focal_distance();
-    }
+   
 }
 
 //-------------------------------------------------------------------------------------------------
