@@ -63,6 +63,7 @@ struct AccumulationKernel
     visionaray::vec4f *accumSecondGradientBuffer = nullptr;
     visionaray::vec4f *accumSecondAlbedoBuffer = nullptr;
     visionaray::vec4f *accumSecondCharacteristicsBuffer = nullptr;
+    
     VSNRAY_FUNC
     void init_buffers(int x, int y)
     {
@@ -423,7 +424,7 @@ struct MultiScatteringKernel : AccumulationKernel
         using C = vector<4, S>;
        
         henyey_greenstein<float> f;
-        float const gradient_factor = 1.0f; 
+        float const gradient_factor = 0.9f; 
         f.g = 0.f; // isotropic
         vec3 initial_position(r.ori);
         result_record<S> result;
@@ -454,6 +455,7 @@ struct MultiScatteringKernel : AccumulationKernel
                 vector<3, float> boxSize(bbox.size());
                 vector<3, float> gradient_val = gradient(visionaray::vector<3, float>(r.ori / boxSize));
                 float gradient_mag = length(gradient_val);
+                vec3 pos = r.ori/ boxSize;
                 if (bounce==1)
                 {
 
@@ -462,7 +464,7 @@ struct MultiScatteringKernel : AccumulationKernel
                     accum_albedo(vec4(albedo(r.ori), 1.f), x, y);
                     //position map
                    
-                    accum_position(vec4(normalize(r.ori), 1.f),x,y);
+                    accum_position(vec4(pos, 1.f),x,y);
 
                     //gradient map
                   
@@ -512,14 +514,12 @@ struct MultiScatteringKernel : AccumulationKernel
                 // Sample phase function, directionality of scattering
 
                
-
+            // from  https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0038586
                 vector<3, float> scatter_dir;
                 float pdf;
-                auto scattering_prob = 1-exp( -1 * gradient_mag * gradient_factor);
-                 f.sample(-r.dir, scatter_dir, pdf, gen);
-                    r.dir = scatter_dir;
-                    hit_rec = intersect(r, bbox);
-                if(gen.next() > scattering_prob){
+                auto scattering_prob = mu(r.ori) * 1-exp( -25 * gradient_mag * gradient_factor * gradient_factor * gradient_factor);
+                
+                if(gen.next() > 1- scattering_prob){
                 //use henhey greenstein to sample scattering direction, scatter_dir and is result where ray direction goes, pdf currently not used
                     f.sample(-r.dir, scatter_dir, pdf, gen);
                     r.dir = scatter_dir;
