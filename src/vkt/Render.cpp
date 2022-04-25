@@ -156,7 +156,8 @@ struct Viewer : ViewerBase
     aabb bbox;
     thin_lens_camera cam;
     unsigned frame_num;
-
+    vec3 up;
+    vec3 eye;
     vkt::TransfuncEditor transfuncEditor;
 
     std::future<void> renderFuture;
@@ -1027,7 +1028,6 @@ void Viewer::on_display()
         }
     };
      
-
             if (structured)
             {
                 switch (structuredVolume.getDataFormat())
