@@ -52,10 +52,10 @@ namespace vkt
         Histogram* userHistogram_ = nullptr;
 
         // Zoom min set by user
-        float zoomMin_ = 0.45f;
+        float zoomMin_ = 0.f;
 
         // Zoom max set by user
-        float zoomMax_ = 0.55f;
+        float zoomMax_ = 1.0f;
 
         // Flag indicating that texture needs to be regenerated
         bool lutChanged_ = false;
