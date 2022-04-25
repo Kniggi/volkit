@@ -136,10 +136,8 @@ inline std::ostream &operator<<(std::ostream &out, thin_lens_camera const &cam)
 // Visionaray viewer
 //
 bool captured = false;
-std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<double>> elapsed_time;
-const int MAX_SCREENSHOTS = 4;
-const int TIME_BETWEEN_SCREENSHOTS = 5;
-const bool prepareNoisyData = true;
+const int MAX_SCREENSHOTS = 3;
+const int MAX_FRAME_NUM = 256;
 struct Viewer : ViewerBase
 {
     // using RayType = basic_ray<simd::float4>;
@@ -273,7 +271,7 @@ struct Viewer : ViewerBase
     void clearFrame();
 
     void screenShot();
-    void captureRGB();
+    void captureRGB(bool prepareNoisyData);
     void captureAlbedo();
     void capturePosition();
     void captureGradient();
@@ -313,7 +311,6 @@ Viewer::Viewer(
     createVolumeViews();
 
     updateVolumeTexture();
-    elapsed_time = std::chrono::system_clock::now();
 }
 
 void Viewer::createVolumeViews()
@@ -450,7 +447,7 @@ void Viewer::screenShot()
         VKT_LOG(vkt::logging::Level::Error) << " Error taking screen shot";
     }
 }
-void Viewer::captureRGB()
+void Viewer::captureRGB(bool prepareNoisyData = false)
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
@@ -463,11 +460,11 @@ void Viewer::captureRGB()
     std::string screenshotName = "";
     if (prepareNoisyData)
     {
-        screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/rgb/";
+        screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
     }
     else
     {
-        screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth/";
+        screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/groundTruth/";
     }
 
     screenshotName.append(std::to_string(num_screenshots));
@@ -505,7 +502,7 @@ void Viewer::capturePosition()
     #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/position/";
+    std::string screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
 
     screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append("_pos.hdr");
@@ -541,7 +538,7 @@ void Viewer::captureCharacteristics()
     #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/characteristics/";
+    std::string screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
 
     screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append("_vol1.hdr");
@@ -577,7 +574,7 @@ void Viewer::captureSecondCharacteristics()
 
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondCharacteristics/";
+    std::string screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
 
     screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append("_vol2.hdr");
@@ -614,7 +611,7 @@ void Viewer::captureAlbedo()
     #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/albedo/";
+    std::string screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
 
     screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append("_alb1.hdr");
@@ -651,7 +648,7 @@ void Viewer::captureSecondAlbedo()
 
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondAlbedo/";
+    std::string screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
 
     screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append("_alb2.hdr");
@@ -688,7 +685,7 @@ void Viewer::captureGradient()
     #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/gradient/";
+    std::string screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
 
     screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append("_norm1.hdr");
@@ -723,7 +720,7 @@ void Viewer::captureSecondGradient()
     #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
-    std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondGradient/";
+    std::string screenshotName = "/home/niklas/Dokumente/Hochschule/Masterarbeit/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
 
     screenshotName.append(std::to_string(num_screenshots));
     screenshotName.append("_norm2.hdr");
@@ -1092,9 +1089,6 @@ void Viewer::on_display()
                 callKernel(uint8_t{});
             }
 
-
-
-
     // display the rendered image
 
     auto bgcolor = background_color();
@@ -1118,9 +1112,18 @@ void Viewer::on_display()
 
     if (have_imgui_support() && renderState.rgbaLookupTable != vkt::ResourceHandle(-1))
         transfuncEditor.show();
-    // just a dirty hack to delay the time to make screenshots
-    std::chrono::duration<double> elapsed_seconds = std::chrono::system_clock::now() - elapsed_time;
-    if (elapsed_seconds.count() > TIME_BETWEEN_SCREENSHOTS)
+    std::cout << frame_num << std::endl;
+    if(frame_num==2){
+        captureRGB(true);
+        captureAlbedo();
+        capturePosition();
+        captureGradient();
+        captureCharacteristics();
+        captureSecondAlbedo();
+        captureSecondCharacteristics();
+        captureSecondGradient();
+    }
+    if (frame_num>= MAX_FRAME_NUM)
     {
         if (num_screenshots == MAX_SCREENSHOTS)
         {
@@ -1131,17 +1134,7 @@ void Viewer::on_display()
 }
 void Viewer::switchView()
 {
-    captureRGB();
-    if (prepareNoisyData)
-    {
-        captureAlbedo();
-        capturePosition();
-        captureGradient();
-        captureCharacteristics();
-        captureSecondAlbedo();
-        captureSecondCharacteristics();
-        captureSecondGradient();
-    }
+    captureRGB(true);
 
     num_screenshots++;
     // vec3 up(0, 1, 0);
@@ -1166,7 +1159,7 @@ void Viewer::switchView()
 
     clearFrame();
 
-    elapsed_time = std::chrono::system_clock::now();
+
     if (num_screenshots % 20 == 0)
     {
         renderState.animationFrame++;
@@ -1216,7 +1209,7 @@ void Viewer::on_resize(int w, int h)
     // cam.perspective(45.0f * constants::degrees_to_radians<float>(), aspect, 0.001f, 1000.0f);
 
     {
-        std::unique_lock<std::mutex> l(displayMutex);
+      //  std::unique_lock<std::mutex> l(displayMutex);
 
         host_accumBuffer.resize(w * h);
         host_accumAlbedoBuffer.resize(w * h);
@@ -1325,7 +1318,6 @@ static void Render_impl(
     viewer.proj(3, 3) = 1.0f;
 
     viewer.event_loop();
-
 
 }
 

@@ -455,7 +455,7 @@ struct MultiScatteringKernel : AccumulationKernel
                 vector<3, float> boxSize(bbox.size());
                 vector<3, float> gradient_val = gradient(visionaray::vector<3, float>(r.ori / boxSize));
                 float gradient_mag = length(gradient_val);
-                vec3 pos = r.ori/ boxSize;
+                visionaray::vector<3, float> pos = visionaray::vector<3, float>(r.ori/ boxSize);
                 if (bounce==1)
                 {
 
@@ -514,12 +514,12 @@ struct MultiScatteringKernel : AccumulationKernel
                 // Sample phase function, directionality of scattering
 
                
-            // from  https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0038586
+            
                 vector<3, float> scatter_dir;
                 float pdf;
-                auto scattering_prob = mu(r.ori) * 1-exp( -25 * gradient_mag * gradient_factor * gradient_factor * gradient_factor);
+                 auto scattering_prob = 1.0f-exp( -1.0f * gradient_mag * gradient_factor);
                 
-                if(gen.next() > 1- scattering_prob){
+                if(gen.next() > scattering_prob){
                 //use henhey greenstein to sample scattering direction, scatter_dir and is result where ray direction goes, pdf currently not used
                     f.sample(-r.dir, scatter_dir, pdf, gen);
                     r.dir = scatter_dir;

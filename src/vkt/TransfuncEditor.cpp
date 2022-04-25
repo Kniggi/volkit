@@ -70,11 +70,11 @@ namespace vkt
         if (userLookupTable_ == nullptr)
             return;
     //for screenshotting: delete transfer function editor
-    //   ImGui::Begin("TransfuncEditor");
+       ImGui::Begin("TransfuncEditor");
 
         drawImmediate();
     //for screenshotting: delete transfer function editor
-       // ImGui::End();
+        ImGui::End();
     }
 
     void TransfuncEditor::drawImmediate()
