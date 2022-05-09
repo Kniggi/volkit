@@ -137,9 +137,9 @@ inline std::ostream &operator<<(std::ostream &out, thin_lens_camera const &cam)
 //
 bool captured = false;
 std::chrono::time_point<std::chrono::system_clock, std::chrono::duration<double>> elapsed_time;
-const int MAX_SCREENSHOTS = 400;
+const int MAX_SCREENSHOTS = 4;
 const int TIME_BETWEEN_SCREENSHOTS = 5;
-const bool prepareNoisyData = false;
+const bool prepareNoisyData = true;
 struct Viewer : ViewerBase
 {
     // using RayType = basic_ray<simd::float4>;
@@ -454,7 +454,11 @@ void Viewer::captureRGB()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
     std::string screenshotName = "";
     if (prepareNoisyData)
@@ -494,7 +498,11 @@ void Viewer::capturePosition()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumPositionBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumPositionBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/position/";
@@ -526,7 +534,11 @@ void Viewer::captureCharacteristics()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumCharacteristicsBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumCharacteristicsBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/characteristics/";
@@ -557,7 +569,12 @@ void Viewer::captureSecondCharacteristics()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondCharacteristicsBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondCharacteristicsBuffer);
+    #endif
+
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondCharacteristics/";
@@ -589,7 +606,12 @@ void Viewer::captureAlbedo()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumAlbedoBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumAlbedoBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/albedo/";
@@ -621,7 +643,12 @@ void Viewer::captureSecondAlbedo()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+      #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondAlbedoBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondAlbedoBuffer);
+    #endif
+
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondAlbedo/";
@@ -654,7 +681,11 @@ void Viewer::captureGradient()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumGradientBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumGradientBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/gradient/";
@@ -685,7 +716,11 @@ void Viewer::captureSecondGradient()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondGradientBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondGradientBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/secondGradient/";
@@ -723,6 +758,14 @@ void Viewer::resetVectors()
     thrust::fill(device_accumSecondAlbedoBuffer.begin(), device_accumSecondAlbedoBuffer.end(), vec4(0, 0, 0, 0));
     thrust::fill(device_accumSecondGradientBuffer.begin(), device_accumSecondGradientBuffer.end(), vec4(0, 0, 0, 0));
     thrust::fill(device_accumSecondCharacteristicsBuffer.begin(), device_accumSecondCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
+#else
+    std::fill(host_accumAlbedoBuffer.begin(), host_accumAlbedoBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumPositionBuffer.begin(), host_accumPositionBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumGradientBuffer.begin(), host_accumGradientBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumCharacteristicsBuffer.begin(), host_accumCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondAlbedoBuffer.begin(), host_accumSecondAlbedoBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondGradientBuffer.begin(), host_accumSecondGradientBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondCharacteristicsBuffer.begin(), host_accumSecondCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
 #endif
 }
 void Viewer::on_display()
@@ -1022,7 +1065,6 @@ void Viewer::on_display()
                 });
         }
     };
-   
 
             if (structured)
             {
@@ -1049,7 +1091,9 @@ void Viewer::on_display()
             {
                 callKernel(uint8_t{});
             }
-        
+
+
+
 
     // display the rendered image
 
@@ -1119,7 +1163,7 @@ void Viewer::switchView()
     // renderState.initialCamera.center = {bbox.center().x, bbox.center().y, bbox.center().z};
     // renderState.initialCamera.up = {up.x, up.y, up.z};
     // // updateVolumeTexture();
-    
+
     clearFrame();
 
     elapsed_time = std::chrono::system_clock::now();
@@ -1166,9 +1210,6 @@ void Viewer::on_space_mouse_move(visionaray::space_mouse_event const &event)
 }
 
 void Viewer::on_resize(int w, int h)
-{
-    if (renderFuture.valid())
-        renderFuture.wait();
 
     // cam.set_viewport(0, 0, w, h);
     // float aspect = w / static_cast<float>(h);
@@ -1200,8 +1241,6 @@ void Viewer::on_resize(int w, int h)
         device_rt[0].resize(w, h);
         device_rt[1].resize(w, h);
 #endif
-    }
-
     clearFrame();
 
     ViewerBase::on_resize(w, h);
@@ -1246,10 +1285,10 @@ static void Render_impl(
     float diagonal = length(viewer.bbox.size());
     float r = diagonal *0.5f;
     vec3 eye = viewer.bbox.center() + vec3(0, 0, r +r /std::atan(fovy));
-    
-    
-    
-    
+
+
+
+
     vec3 up = vec3(0.0f,1.0f,0.0f);
     vec3 f = normalize(eye - viewer.bbox.center());
     vec3 s = normalize(cross(up, f));
@@ -1269,7 +1308,7 @@ static void Render_impl(
     viewer.proj(0, 1) = 0.0f;
     viewer.proj(0, 2) = 0.0f;
     viewer.proj(0, 3) = 0.0f;
-    
+
     viewer.proj(1, 0) = 0.0f;
     viewer.proj(1, 1) = 1.0f / (viewer.height()/2.0f);
     viewer.proj(1, 2) = 0.0f;
@@ -1284,10 +1323,10 @@ static void Render_impl(
     viewer.proj(3, 1) = 0.0f;
     viewer.proj(3, 2) = 0.0f;
     viewer.proj(3, 3) = 1.0f;
-    
+
     viewer.event_loop();
 
-   
+
 }
 
 //-------------------------------------------------------------------------------------------------
