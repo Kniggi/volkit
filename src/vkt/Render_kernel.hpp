@@ -460,20 +460,20 @@ struct MultiScatteringKernel : AccumulationKernel
                 {
 
                     //albedo map
-                    
+
                     accum_albedo(vec4(albedo(r.ori), 1.f), x, y);
                     //position map
-                   
+
                     accum_position(vec4(pos, 1.f),x,y);
 
                     //gradient map
-                  
-                    
+
+
                     accum_gradient(vec4(normalize(gradient_val), 1.0f), x, y);
 
-                    
-                    //gradient magnitude, optical thickness, extinction coefficient 
-                    
+
+                    //gradient magnitude, optical thickness, extinction coefficient
+
                     float optical_thickness = 0.5f;
                     vec3 characteristics(gradient_mag/3000.f,optical_thickness,mu(r.ori));
                     vec4 res (characteristics,1.0f);
@@ -484,16 +484,16 @@ struct MultiScatteringKernel : AccumulationKernel
                 {
 
                     //albedo map
-                    
+
                     accum_second_albedo(vec4(albedo(r.ori), 1.f), x, y);
 
                     //gradient map
-                  
-                    
+
+
                     accum_second_gradient(vec4(normalize(gradient_val), 1.0f), x, y);
 
-                    
-                    //gradient magnitude, optical thickness, extinction coefficient 
+
+                    //gradient magnitude, optical thickness, extinction coefficient
                     float optical_thickness = 0.5f;
                     vec3 characteristics(gradient_mag/3000.f,optical_thickness,mu(r.ori));
                     vec4 res (characteristics,1.0f);

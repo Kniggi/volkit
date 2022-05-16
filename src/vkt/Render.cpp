@@ -461,7 +461,11 @@ void Viewer::captureRGB()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
     std::string screenshotName = "";
     if (prepareNoisyData)
@@ -501,7 +505,11 @@ void Viewer::capturePosition()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumPositionBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumPositionBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -533,7 +541,11 @@ void Viewer::captureCharacteristics()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumCharacteristicsBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumCharacteristicsBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -564,7 +576,12 @@ void Viewer::captureSecondCharacteristics()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondCharacteristicsBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondCharacteristicsBuffer);
+    #endif
+
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -596,7 +613,12 @@ void Viewer::captureAlbedo()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumAlbedoBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumAlbedoBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -628,7 +650,12 @@ void Viewer::captureSecondAlbedo()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+      #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondAlbedoBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondAlbedoBuffer);
+    #endif
+
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -661,7 +688,11 @@ void Viewer::captureGradient()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumGradientBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumGradientBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -692,7 +723,11 @@ void Viewer::captureSecondGradient()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondGradientBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondGradientBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -730,6 +765,14 @@ void Viewer::resetVectors()
     thrust::fill(device_accumSecondAlbedoBuffer.begin(), device_accumSecondAlbedoBuffer.end(), vec4(0, 0, 0, 0));
     thrust::fill(device_accumSecondGradientBuffer.begin(), device_accumSecondGradientBuffer.end(), vec4(0, 0, 0, 0));
     thrust::fill(device_accumSecondCharacteristicsBuffer.begin(), device_accumSecondCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
+#else
+    std::fill(host_accumAlbedoBuffer.begin(), host_accumAlbedoBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumPositionBuffer.begin(), host_accumPositionBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumGradientBuffer.begin(), host_accumGradientBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumCharacteristicsBuffer.begin(), host_accumCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondAlbedoBuffer.begin(), host_accumSecondAlbedoBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondGradientBuffer.begin(), host_accumSecondGradientBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondCharacteristicsBuffer.begin(), host_accumSecondCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
 #endif
 }
 void Viewer::on_display()
@@ -1027,7 +1070,7 @@ void Viewer::on_display()
                 });
         }
     };
-     
+
             if (structured)
             {
                 switch (structuredVolume.getDataFormat())
@@ -1053,9 +1096,9 @@ void Viewer::on_display()
             {
                 callKernel(uint8_t{});
             }
-        
-    
-    
+
+
+
 
     // display the rendered image
 
@@ -1125,7 +1168,7 @@ void Viewer::switchView()
     // updateVolumeTexture();
     clearFrame();
 
- 
+
     if (num_screenshots % 20 == 0)
     {
         renderState.animationFrame++;
