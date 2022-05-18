@@ -137,7 +137,7 @@ inline std::ostream &operator<<(std::ostream &out, thin_lens_camera const &cam)
 //
 bool captured = false;
 const int MAX_SCREENSHOTS = 3;
-const int MAX_FRAME_NUM = 1024;
+const int MAX_FRAME_NUM = 512;
  bool prepareNoisyData = true;
 struct Viewer : ViewerBase
 {
@@ -169,6 +169,7 @@ struct Viewer : ViewerBase
 
     bool useCuda;
     float rotation_factor = 0.5f;
+    float zoom_factor = 1.f;
     int num_screenshots = 0;
     // Two render targets for double buffering
     cpu_buffer_rt<PF_RGBA32F, PF_UNSPECIFIED> host_rt[2];
@@ -273,7 +274,7 @@ struct Viewer : ViewerBase
     void clearFrame();
 
     void screenShot();
-    void captureRGB();
+    void captureRGB(bool prepareNoisyData);
     void captureAlbedo();
     void capturePosition();
     void captureGradient();
@@ -449,11 +450,15 @@ void Viewer::screenShot()
         VKT_LOG(vkt::logging::Level::Error) << " Error taking screen shot";
     }
 }
-void Viewer::captureRGB()
+void Viewer::captureRGB(bool prepareNoisyData = false)
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
     std::string screenshotName = "";
     if (prepareNoisyData)
@@ -493,7 +498,11 @@ void Viewer::capturePosition()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumPositionBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumPositionBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -525,7 +534,11 @@ void Viewer::captureCharacteristics()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumCharacteristicsBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumCharacteristicsBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -556,7 +569,12 @@ void Viewer::captureSecondCharacteristics()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondCharacteristicsBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondCharacteristicsBuffer);
+    #endif
+
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -588,7 +606,12 @@ void Viewer::captureAlbedo()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumAlbedoBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumAlbedoBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -620,7 +643,12 @@ void Viewer::captureSecondAlbedo()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+      #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondAlbedoBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondAlbedoBuffer);
+    #endif
+
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -653,7 +681,11 @@ void Viewer::captureGradient()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+    #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumGradientBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumGradientBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -684,7 +716,11 @@ void Viewer::captureSecondGradient()
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
+     #if VKT_HAVE_CUDA
     thrust::host_vector<vec4> h_v(device_accumSecondGradientBuffer);
+    #else
+     std::vector<vec4> h_v(host_accumSecondGradientBuffer);
+    #endif
     std::vector<vector<3, unorm<8>>> output(h_v.begin(), h_v.end());
 
     std::string screenshotName = "/home/niklas/Dokumente/discovering-the-impact-of-volume-path-tracing-denoisers-on-features-in-medical-data/dataset/1spp/";
@@ -722,10 +758,18 @@ void Viewer::resetVectors()
     thrust::fill(device_accumSecondAlbedoBuffer.begin(), device_accumSecondAlbedoBuffer.end(), vec4(0, 0, 0, 0));
     thrust::fill(device_accumSecondGradientBuffer.begin(), device_accumSecondGradientBuffer.end(), vec4(0, 0, 0, 0));
     thrust::fill(device_accumSecondCharacteristicsBuffer.begin(), device_accumSecondCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
+#else
+    std::fill(host_accumAlbedoBuffer.begin(), host_accumAlbedoBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumPositionBuffer.begin(), host_accumPositionBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumGradientBuffer.begin(), host_accumGradientBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumCharacteristicsBuffer.begin(), host_accumCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondAlbedoBuffer.begin(), host_accumSecondAlbedoBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondGradientBuffer.begin(), host_accumSecondGradientBuffer.end(), vec4(0, 0, 0, 0));
+    std::fill(host_accumSecondCharacteristicsBuffer.begin(), host_accumSecondCharacteristicsBuffer.end(), vec4(0, 0, 0, 0));
 #endif
 }
 void Viewer::on_display()
-{
+{   
     if (transfuncEditor.updated())
         clearFrame();
 
@@ -1021,7 +1065,6 @@ void Viewer::on_display()
                 });
         }
     };
-     
             if (structured)
             {
                 switch (structuredVolume.getDataFormat())
@@ -1047,9 +1090,6 @@ void Viewer::on_display()
             {
                 callKernel(uint8_t{});
             }
-        
-    
-    
 
     // display the rendered image
 
@@ -1076,8 +1116,7 @@ void Viewer::on_display()
         transfuncEditor.show();
     std::cout << frame_num << std::endl;
     if(frame_num==1){
-        prepareNoisyData=true;
-        captureRGB();
+        captureRGB(true);
         captureAlbedo();
         capturePosition();
         captureGradient();
@@ -1085,7 +1124,6 @@ void Viewer::on_display()
         captureSecondAlbedo();
         captureSecondCharacteristics();
         captureSecondGradient();
-        prepareNoisyData=false;
     }
     if (frame_num>= MAX_FRAME_NUM)
     {
@@ -1095,20 +1133,11 @@ void Viewer::on_display()
         }
         switchView();
     }
+    
 }
 void Viewer::switchView()
 {
-    captureRGB();
-    if (prepareNoisyData)
-    {
-        captureAlbedo();
-        capturePosition();
-        captureGradient();
-        captureCharacteristics();
-        captureSecondAlbedo();
-        captureSecondCharacteristics();
-        captureSecondGradient();
-    }
+    captureRGB(false);
 
     num_screenshots++;
      
@@ -1189,16 +1218,13 @@ void Viewer::on_space_mouse_move(visionaray::space_mouse_event const &event)
 }
 
 void Viewer::on_resize(int w, int h)
-{
-    if (renderFuture.valid())
-        renderFuture.wait();
 
     // cam.set_viewport(0, 0, w, h);
     // float aspect = w / static_cast<float>(h);
     // cam.perspective(45.0f * constants::degrees_to_radians<float>(), aspect, 0.001f, 1000.0f);
 
     {
-        std::unique_lock<std::mutex> l(displayMutex);
+      //  std::unique_lock<std::mutex> l(displayMutex);
 
         host_accumBuffer.resize(w * h);
         host_accumAlbedoBuffer.resize(w * h);
@@ -1223,8 +1249,6 @@ void Viewer::on_resize(int w, int h)
         device_rt[0].resize(w, h);
         device_rt[1].resize(w, h);
 #endif
-    }
-
     clearFrame();
 
     ViewerBase::on_resize(w, h);
@@ -1270,8 +1294,17 @@ static void Render_impl(
     float r = diagonal *0.5f;
     viewer.eye = viewer.bbox.center() + vec3(0, 0, r +r /std::atan(fovy));
  
-    
-    viewer.up = vec3(0.0f,1.0f,0.0f);
+   
+    viewer.up = vec3(0.f,1.0f,0.f);
+
+
+    // vec3 right = normalize(cross(viewer.eye, viewer.up));
+    // vec3 camFocusVector = viewer.eye - viewer.bbox.center();
+    // mat3 rotMat1 = matrixFromAxisAngle(viewer.up, viewer.rotation_factor);
+    // mat3 rotMat2 = matrixFromAxisAngle(right, viewer.rotation_factor);
+    // camFocusVector = rotMat1 * camFocusVector;
+    // camFocusVector = rotMat2 * camFocusVector;
+    // viewer.eye  = camFocusVector + viewer.bbox.center();
   
     vec3 f = normalize(viewer.eye - viewer.bbox.center());
     vec3 s = normalize(cross(viewer.up, f));
@@ -1287,13 +1320,13 @@ static void Render_impl(
         -dot(viewer.eye, s), -dot(viewer.eye, u), -dot(viewer.eye, f), 1.0f
         );
 
-    viewer.proj(0, 0) = 1.0f / (viewer.width()/2.0f);
+    viewer.proj(0, 0) = 1.0f / (viewer.width()/2.0f  *viewer.zoom_factor);
     viewer.proj(0, 1) = 0.0f;
     viewer.proj(0, 2) = 0.0f;
     viewer.proj(0, 3) = 0.0f;
-    
+
     viewer.proj(1, 0) = 0.0f;
-    viewer.proj(1, 1) = 1.0f / (viewer.height()/2.0f);
+    viewer.proj(1, 1) = 1.0f / (viewer.height()/2.0f *viewer.zoom_factor);
     viewer.proj(1, 2) = 0.0f;
     viewer.proj(1, 3) = 0.0f;
 
@@ -1306,10 +1339,9 @@ static void Render_impl(
     viewer.proj(3, 1) = 0.0f;
     viewer.proj(3, 2) = 0.0f;
     viewer.proj(3, 3) = 1.0f;
-    
+
     viewer.event_loop();
 
-   
 }
 
 //-------------------------------------------------------------------------------------------------

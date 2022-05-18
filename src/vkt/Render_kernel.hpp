@@ -460,22 +460,22 @@ struct MultiScatteringKernel : AccumulationKernel
                 {
 
                     //albedo map
-                    
+
                     accum_albedo(vec4(albedo(r.ori), 1.f), x, y);
                     //position map
-                   
+
                     accum_position(vec4(pos, 1.f),x,y);
 
                     //gradient map
-                  
-                    
-                    accum_gradient(vec4(gradient_val, 1.0f), x, y);
 
-                    
-                    //gradient magnitude, optical thickness, extinction coefficient 
-                    
+
+                    accum_gradient(vec4(normalize(gradient_val), 1.0f), x, y);
+
+
+                    //gradient magnitude, optical thickness, extinction coefficient
+
                     float optical_thickness = 0.5f;
-                    vec3 characteristics(gradient_mag,optical_thickness,mu(r.ori));
+                    vec3 characteristics(gradient_mag/3000.f,optical_thickness,mu(r.ori));
                     vec4 res (characteristics,1.0f);
                     accum_characteristics(res,x,y);
                 }
@@ -484,18 +484,18 @@ struct MultiScatteringKernel : AccumulationKernel
                 {
 
                     //albedo map
-                    
+
                     accum_second_albedo(vec4(albedo(r.ori), 1.f), x, y);
 
                     //gradient map
-                  
-                    
-                    accum_second_gradient(vec4(gradient_val, 1.0f), x, y);
 
-                    
-                    //gradient magnitude, optical thickness, extinction coefficient 
+
+                    accum_second_gradient(vec4(normalize(gradient_val), 1.0f), x, y);
+
+
+                    //gradient magnitude, optical thickness, extinction coefficient
                     float optical_thickness = 0.5f;
-                    vec3 characteristics(gradient_mag,optical_thickness,mu(r.ori));
+                    vec3 characteristics(gradient_mag/3000.f,optical_thickness,mu(r.ori));
                     vec4 res (characteristics,1.0f);
                     accum_second_characteristics(res,x,y);
                 }
@@ -527,13 +527,13 @@ struct MultiScatteringKernel : AccumulationKernel
                 }
                 else{
 
-                  
+
                     shade_record<float> sr;
                     sr.normal = normalize(gradient_val);
                     sr.geometric_normal = normalize(gradient_val);
                     sr.view_dir = -r.dir;
                     sr.tex_color = albedo(r.ori);
-                    //auto pdf = f_brdf.pdf(sr, surface_interaction::Unspecified); 
+                    //auto pdf = f_brdf.pdf(sr, surface_interaction::Unspecified);
 
                     int inter = 1;
                     f_brdf.sample(
@@ -542,11 +542,11 @@ struct MultiScatteringKernel : AccumulationKernel
                         pdf,
                         inter,
                         gen);
-                   
+
                     r.dir = scatter_dir;
                     hit_rec = intersect(r, bbox);
                 }
-          
+
             }
         }
         // Look up the environment
