@@ -271,7 +271,7 @@ struct Viewer : ViewerBase
     void clearFrame();
 
     void screenShot();
-    void captureRGB();
+    void captureRGB(bool prepareNoisyData);
     void captureAlbedo();
     void capturePosition();
     void captureGradient();
@@ -457,7 +457,7 @@ void Viewer::screenShot()
         VKT_LOG(vkt::logging::Level::Error) << " Error taking screen shot";
     }
 }
-void Viewer::captureRGB()
+void Viewer::captureRGB(bool prepareNoisyData = false)
 {
     auto const &rt = host_rt[frontBufferIndex];
     // albedobuffer is of type thrust::device_vector<vec3>
@@ -1124,6 +1124,16 @@ void Viewer::on_display()
     if (have_imgui_support() && renderState.rgbaLookupTable != vkt::ResourceHandle(-1))
         transfuncEditor.show();
     std::cout << frame_num << std::endl;
+    if(frame_num==1){
+        captureRGB(true);
+        captureAlbedo();
+        capturePosition();
+        captureGradient();
+        captureCharacteristics();
+        captureSecondAlbedo();
+        captureSecondCharacteristics();
+        captureSecondGradient();
+    }
     if (frame_num>= MAX_FRAME_NUM)
     {
         if (num_screenshots == MAX_SCREENSHOTS)
@@ -1135,17 +1145,8 @@ void Viewer::on_display()
 }
 void Viewer::switchView()
 {
-    captureRGB();
-    if (prepareNoisyData)
-    {
-        captureAlbedo();
-        capturePosition();
-        captureGradient();
-        captureCharacteristics();
-        captureSecondAlbedo();
-        captureSecondCharacteristics();
-        captureSecondGradient();
-    }
+    captureRGB(false);
+    
 
     num_screenshots++;
     vec3 up(0, 1, 0);
@@ -1153,23 +1154,23 @@ void Viewer::switchView()
     // float r = diagonal * 0.5f;
 
     // float dotsurfeye = dot(vec3(0,0,1), cam.eye());
-    vec3 eye(0, 0, 0);
-    vec3 right = normalize(cross(cam.eye(), up));
-    vec3 camFocusVector(cam.eye() - bbox.center());
-    mat3 rotMat1 = matrixFromAxisAngle(up, rotation_factor);
-    mat3 rotMat2 = matrixFromAxisAngle(right, rotation_factor);
-    camFocusVector = rotMat1 * camFocusVector;
-    camFocusVector = rotMat2 * camFocusVector;
-    eye = camFocusVector + bbox.center();
-    cam.look_at(eye, bbox.center(), up);
-    renderState.initialCamera.eye = {eye.x, eye.y, eye.z};
-    renderState.initialCamera.center = {bbox.center().x, bbox.center().y, bbox.center().z};
-    renderState.initialCamera.up = {up.x, up.y, up.z};
+    // vec3 eye(0, 0, 0);
+    // vec3 right = normalize(cross(cam.eye(), up));
+    // vec3 camFocusVector(cam.eye() - bbox.center());
+    // mat3 rotMat1 = matrixFromAxisAngle(up, rotation_factor);
+    // mat3 rotMat2 = matrixFromAxisAngle(right, rotation_factor);
+    // camFocusVector = rotMat1 * camFocusVector;
+    // camFocusVector = rotMat2 * camFocusVector;
+    // eye = camFocusVector + bbox.center();
+    // cam.look_at(eye, bbox.center(), up);
+    // renderState.initialCamera.eye = {eye.x, eye.y, eye.z};
+    // renderState.initialCamera.center = {bbox.center().x, bbox.center().y, bbox.center().z};
+    // renderState.initialCamera.up = {up.x, up.y, up.z};
     // updateVolumeTexture();
     clearFrame();
 
 
-    if (num_screenshots % 20 == 0)
+    if (num_screenshots % 1 == 0)
     {
         renderState.animationFrame++;
 
