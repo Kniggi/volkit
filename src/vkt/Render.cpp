@@ -1114,7 +1114,7 @@ void Viewer::on_display()
 
     if (have_imgui_support() && renderState.rgbaLookupTable != vkt::ResourceHandle(-1))
         transfuncEditor.show();
-    std::cout << frame_num << std::endl;
+   std::cout << frame_num << std::endl;
     if(frame_num==1){
         captureRGB(true);
         captureAlbedo();
@@ -1218,13 +1218,16 @@ void Viewer::on_space_mouse_move(visionaray::space_mouse_event const &event)
 }
 
 void Viewer::on_resize(int w, int h)
+{
+    if (renderFuture.valid())
+        renderFuture.wait();
 
     // cam.set_viewport(0, 0, w, h);
     // float aspect = w / static_cast<float>(h);
     // cam.perspective(45.0f * constants::degrees_to_radians<float>(), aspect, 0.001f, 1000.0f);
 
     {
-      //  std::unique_lock<std::mutex> l(displayMutex);
+        std::unique_lock<std::mutex> l(displayMutex);
 
         host_accumBuffer.resize(w * h);
         host_accumAlbedoBuffer.resize(w * h);
@@ -1249,6 +1252,7 @@ void Viewer::on_resize(int w, int h)
         device_rt[0].resize(w, h);
         device_rt[1].resize(w, h);
 #endif
+    }
     clearFrame();
 
     ViewerBase::on_resize(w, h);
