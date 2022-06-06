@@ -137,7 +137,7 @@ inline std::ostream &operator<<(std::ostream &out, thin_lens_camera const &cam)
 //
 bool captured = false;
 const int MAX_SCREENSHOTS = 23;
-const int MAX_FRAME_NUM = 256;
+const int MAX_FRAME_NUM = 512;
 const bool prepareNoisyData = false;
 struct Viewer : ViewerBase
 {
